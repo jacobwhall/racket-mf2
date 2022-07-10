@@ -24,7 +24,7 @@
 
 (struct e-property
   property
-  (html))
+  ())
 
 (struct microformat
   (types
@@ -61,10 +61,7 @@
                                 (map datetime->iso8601
                                      (property-value x))]
                                [(e-property? x)
-                                (make-hasheq (list (cons 'value
-                                                         (property-value x))
-                                                   (cons 'html
-                                                         (e-property-html x))))]
+                                (property-value x)]
                                [else 
                                 (map (λ (v)
                                        (if (string? v)
@@ -88,9 +85,9 @@
                        (value (listof datetime?))
                        (experimental boolean?))]
   [struct e-property ((title symbol?)
-                      (value string?)
-                      (experimental boolean?)
-                      (html string?))]
+                      (value (listof (hash/c (or/c 'html
+                                                   'value) string?)))
+                      (experimental boolean?))]
   [struct microformat ((types (listof symbol?))
                        (properties (listof property?))
                        (children (listof microformat?))

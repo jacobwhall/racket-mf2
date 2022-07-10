@@ -93,9 +93,11 @@
 (define (parse-e-* element class-list)
   (map (λ (class)
          (e-property (property->symbol class)
-                     (sxml:text element)
-                     #f
-                     (car (sxml:content element)))) ; TODO: proper html serialization (), remove leading/trailing whitespace
+                     (list (make-hasheq (list (cons 'value
+                                                    (car (sxml:content element))) ; TODO: proper html serialization (), remove leading/trailing whitespace
+                                              (cons 'html
+                                                    (sxml:text element)))))
+                     #f)) 
        class-list)) ; TODO (make sure to drop nested script, style tags; replace images with alt or src, removing leading/trailing whitespace)
 
 (define (parse-properties element)
