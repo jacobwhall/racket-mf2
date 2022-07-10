@@ -135,11 +135,11 @@
           (recursive-parse element-list)))
 
 (define (string->microformats input)
-  (jsexpr->string (make-hasheq (list (cons 'items
-                                           (map microformat->jsexpr
-                                                (parse-elements (sxml:child-elements (html->xexp input)))))
-                                     (cons 'rels
-                                           (make-hasheq))
-                                     (cons 'rel-urls
-                                           (make-hasheq))
-                                     ))))
+  (make-hasheq (list (cons 'items
+                           (map microformat->jsexpr
+                                (parse-elements (sxml:child-elements (html->xexp input)))))
+                     (cons 'rels
+                           (make-hasheq))
+                     (cons 'rel-urls
+                           (make-hasheq))
+                     )))
