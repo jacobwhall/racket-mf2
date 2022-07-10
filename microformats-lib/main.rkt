@@ -7,7 +7,7 @@
          net/url
          "structs.rkt")
 
-(provide (contract-out [string->microformats (string? . -> . jsexpr?)])) ; parse-mf will return a JSON string
+(provide (contract-out [string->microformats (string? . -> . jsexpr?)]))
 
 
 (define (find-attr attr-name
@@ -105,8 +105,8 @@
    (parse-dt-* element (find-class "dt-.+" element))
    (parse-e-* element (find-class "e-.+" element))))
 
-(define (recursive-parse elements) ; list of elements, same-level siblings
-  (map (λ (element) ; map the following function onto each element in our list (function will return a list)
+(define (recursive-parse elements)
+  (map (λ (element)
          (let ([h-types (map (λ (s) (string->symbol (substring s 2)))
                              (find-class "h-.+" element))]
                [parsed-children (flatten (recursive-parse (sxml:child-elements element)))]
