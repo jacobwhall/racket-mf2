@@ -5,6 +5,7 @@
          json
          gregor
          net/url
+         racket/hash
          "structures.rkt")
 
 (provide (contract-out [string->microformats (string? . -> . jsexpr?)]))
@@ -171,13 +172,27 @@
   (filter microformat?
           (recursive-parse element-list)))
 
+(define (element->rels element)
+  (let ([href (find-attr 'href element)])
+    (cons (if (list? href)
+              (hasheq)
+              (hasheq (string->symbol (find-attr 'rel element))
+                      (list href)))
+          '()))) ; TODO: rel-urls
 
 (define (string->microformats input)
-  (make-hasheq (list (cons 'items
-                           (map microformat->jsexpr
-                                (parse-elements (sxml:child-elements (html->xexp input)))))
-                     (cons 'rels
-                           (make-hasheq))
-                     (cons 'rel-urls
-                           (make-hasheq))
-                     )))
+  (let ([input-doc (html->xexp input)])
+    (let ([rel-pairs (map element->rels
+                          ((sxpath "//*[@rel and local-name()='a' or local-name()='link' or local-name()='area']")
+                           input-doc))])
+      (make-hasheq (list (cons 'items
+                               (map microformat->jsexpr
+                                    (parse-elements (sxml:child-elements input-doc))))
+                         (cons 'rels
+                               (apply hash-union
+                                      (map car
+                                           rel-pairs)
+                                      #:combine/key (lambda (k v1 v2)(append v1 v2))))
+                         (cons 'rel-urls
+                               (make-hasheq))
+                         )))))
