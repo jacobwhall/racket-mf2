@@ -173,14 +173,17 @@
           (recursive-parse element-list)))
 
 (define (element->rels element)
-  (let ([href (find-attr 'href element)])
-    (cons (if (list? href)
+  (let ([href (find-attr 'href element)]
+        [rels (string-split (find-attr 'rel element))])
+    (cons (if (and (list? href)
+                   (pair? rels))
               (hasheq)
-              (hasheq (string->symbol (find-attr 'rel element))
-                      (list href)))
+              (make-immutable-hasheq (map (λ (attr) (cons (string->symbol attr)
+                                                          (list href)))
+                                          rels)))
           (cons (string->symbol (find-attr 'href element))
                 (make-hasheq (filter pair? (append (list (cons 'rels
-                                                               (string-split (find-attr 'rel element))))
+                                                               rels))
                                                    (map (λ (attr)
                                                           (let ([value (find-attr attr element)])
                                                             (if (list? value)
@@ -198,7 +201,6 @@
     (let ([rel-pairs (map element->rels
                           ((sxpath "//*[@rel and local-name()='a' or local-name()='link' or local-name()='area']")
                            input-doc))])
-      (println (map cdr rel-pairs))
       (make-hasheq (list (cons 'items
                                (map microformat->jsexpr
                                     (parse-elements (sxml:child-elements input-doc))))
@@ -206,6 +208,6 @@
                                (apply hash-union
                                       (map car
                                            rel-pairs)
-                                      #:combine/key (lambda (k v1 v2)(append v1 v2))))
+                                      #:combine/key (lambda (k v1 v2)(remove-duplicates (append v1 v2)))))
                          (cons 'rel-urls
                                (make-hasheq (map cdr rel-pairs))))))))
