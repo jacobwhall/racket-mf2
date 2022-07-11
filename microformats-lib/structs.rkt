@@ -5,26 +5,11 @@
          net/url)
 
 (struct property
-  (title
+  (prefix
+   title
    value
    experimental)
   #:transparent)
-
-(struct p-property
-  property
-  ())
-
-(struct u-property
-  property
-  ())
-
-(struct dt-property
-  property
-  ())
-
-(struct e-property
-  property
-  ())
 
 (struct microformat
   (types
@@ -43,7 +28,7 @@
 
 (define (microformat->jsexpr x)
   (cond [(microformat? x) (make-hasheq (filter (λ (y) (or (pair? (cdr y)) (hash? (cdr y))))
-                                               (list (cons 'types
+                                               (list (cons 'type
                                                            (microformat-type-strings x))
                                                      (cons 'properties
                                                            
@@ -54,13 +39,13 @@
                                                                 (microformat-children x))))))]
         [(property? x) (cons (property-title x)
                              (cond ; [(p-property? x)] ; for now, use the else statement
-                               [(u-property? x)
+                               [(equal? (property-prefix x) 'u)
                                 (map url->string
                                      (property-value x))]
-                               [(dt-property? x)
+                               [(equal? (property-prefix x) 'dt)
                                 (map datetime->iso8601
                                      (property-value x))]
-                               [(e-property? x)
+                               [(equal? (property-prefix x) 'e)
                                 (property-value x)]
                                [else 
                                 (map (λ (v)
@@ -70,24 +55,20 @@
                                      (property-value x))]))]))
       
 
+
+                        
+
 (provide
  (contract-out
-  [struct property ((title symbol?)
-                    (value (or/c (listof string?) (listof microformat?)))
+  [struct property ((prefix (or/c 'p 'u 'dt 'e 'h))
+                    (title symbol?)
+                    (value (or/c (or/c (listof string?) (listof microformat?))
+                                 (listof datetime?)
+                                 (listof url?)
+                                 (listof (hash/c (or/c 'html
+                                                       'value)
+                                                 string?))))
                     (experimental boolean?))]
-  [struct p-property ((title symbol?)
-                      (value (or/c (listof string?) (listof microformat?)))
-                      (experimental boolean?))]
-  [struct u-property ((title symbol?)
-                      (value (listof url?))
-                      (experimental boolean?))]
-  [struct dt-property ((title symbol?)
-                       (value (listof datetime?))
-                       (experimental boolean?))]
-  [struct e-property ((title symbol?)
-                      (value (listof (hash/c (or/c 'html
-                                                   'value) string?)))
-                      (experimental boolean?))]
   [struct microformat ((types (listof symbol?))
                        (properties (listof property?))
                        (children (listof microformat?))
