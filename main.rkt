@@ -178,13 +178,27 @@
               (hasheq)
               (hasheq (string->symbol (find-attr 'rel element))
                       (list href)))
-          '()))) ; TODO: rel-urls
+          (cons (string->symbol (find-attr 'href element))
+                (make-hasheq (filter pair? (append (list (cons 'rels
+                                                               (string-split (find-attr 'rel element))))
+                                                   (map (λ (attr)
+                                                          (let ([value (find-attr attr element)])
+                                                            (if (list? value)
+                                                                null
+                                                                (cons attr
+                                                                      value))))
+                                                        (list 'hreflang
+                                                              'media
+                                                              'title))
+                                                   (list (cons 'text
+                                                               (sxml:text element))))))))))
 
 (define (string->microformats input)
   (let ([input-doc (html->xexp input)])
     (let ([rel-pairs (map element->rels
                           ((sxpath "//*[@rel and local-name()='a' or local-name()='link' or local-name()='area']")
                            input-doc))])
+      (println (map cdr rel-pairs))
       (make-hasheq (list (cons 'items
                                (map microformat->jsexpr
                                     (parse-elements (sxml:child-elements input-doc))))
@@ -194,5 +208,4 @@
                                            rel-pairs)
                                       #:combine/key (lambda (k v1 v2)(append v1 v2))))
                          (cons 'rel-urls
-                               (make-hasheq))
-                         )))))
+                               (make-hasheq (map cdr rel-pairs))))))))
