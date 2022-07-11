@@ -35,7 +35,6 @@
                                                (list (cons 'type
                                                            (microformat-type-strings x))
                                                      (cons 'properties
-                                                           
                                                            (make-hasheq (map microformat->jsexpr
                                                                              (microformat-properties x))))
                                                      (cons 'children
