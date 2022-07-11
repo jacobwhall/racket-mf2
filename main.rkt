@@ -32,8 +32,8 @@
                                 [else class])))))
 
 
-(define (value-class-pattern element dt?) ; https://microformats.org/wiki/value-class-pattern
-  (let ([vcp (let ([value-kid ((select-kids (λ (x) (find-class "value" x))) element)])
+(define (value-class-pattern element) ; https://microformats.org/wiki/value-class-pattern
+  (let ([value-kid ((select-kids (λ (x) (find-class "value" x))) element)])
                (if (pair? value-kid)
                    (let ([n (sxml:element-name (car value-kid))]) ; TODO: correctly handle multiple matching children
                      (or (and (member n (list 'img 'area)) (find-attr 'alt value-kid))
@@ -41,12 +41,7 @@
                                                    (sxml:text value-kid)))
                          (and (equal? n 'abbr) (find-attr 'value value-kid))
                          (sxml:text value-kid)))
-                   #f))])
-    (if vcp
-        (if dt?
-            (iso8601->datetime vcp)
-            vcp)
-        #f)))
+                   #f)))
 
 
 (define (property->symbol property)
@@ -59,8 +54,7 @@
          (property 'p
                    (property->symbol class)
                    (list (let ([n (sxml:element-name element)])
-                           (or (value-class-pattern element
-                                                    #f)
+                           (or (value-class-pattern element)
                                (and (member n (list 'abbr 'link)) (find-attr 'title element))
                                (and (member n (list 'data 'input)) (find-attr 'value element))
                                (and (member n (list 'img 'area)) (find-attr 'alt element))
@@ -80,8 +74,7 @@
                                             (and (equal? n 'video) (find-attr 'poster element))
                                             (and (equal? n 'object) (find-attr 'data element))
                                             (and (member n (list 'audio 'video 'source 'iframe)) (find-attr 'src element))
-                                            (value-class-pattern element
-                                                                 #f)
+                                            (value-class-pattern element)
                                             (and (equal? n 'abbr) (find-attr 'title element))
                                             (and (member n (list 'data 'input)) (find-attr 'value element))
                                             (sxml:text element)))))  ; TODO:  removing all leading/trailing whitespace and nested <script> & <style> elements beforehand
@@ -94,8 +87,9 @@
          (property 'dt
                    (property->symbol class)
                    (list (let ([n (sxml:element-name element)]) ; TODO: more permissive datetime parsing (also, allow for +0000 on iso8601 datetimes?)
-                           (or (value-class-pattern element
-                                                    #t)
+                           (or (let ([vcp (value-class-pattern element)])
+                                 (and vcp
+                                      (iso8601->datetime vcp)))
                                (and (member n (list 'time 'ins 'del)) (find-attr 'datetime element))
                                (and (equal? n 'abbr) (find-attr 'title element))
                                (and (member n (list 'data 'input)) (find-attr 'value element))
