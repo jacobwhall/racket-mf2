@@ -5,7 +5,7 @@
          json
          gregor
          net/url
-         "structs.rkt")
+         "structures.rkt")
 
 (provide (contract-out [string->microformats (string? . -> . jsexpr?)]))
 
