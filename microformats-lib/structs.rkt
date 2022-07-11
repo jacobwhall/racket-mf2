@@ -4,12 +4,14 @@
          gregor
          net/url)
 
+
 (struct property
   (prefix
    title
    value
    experimental)
   #:transparent)
+
 
 (struct microformat
   (types
@@ -18,6 +20,7 @@
    experimental)
   #:transparent)
 
+
 (define (microformat-type-strings mf)
   (map (λ (type)
          (string-append (if (microformat-experimental mf)
@@ -25,6 +28,7 @@
                             "h-")
                         (symbol->string type)))
        (microformat-types mf)))
+
 
 (define (microformat->jsexpr x)
   (cond [(microformat? x) (make-hasheq (filter (λ (y) (or (pair? (cdr y)) (hash? (cdr y))))
@@ -38,12 +42,15 @@
                                                            (map microformat->jsexpr
                                                                 (microformat-children x))))))]
         [(property? x) (cons (property-title x)
-                             (cond ; [(p-property? x)] ; for now, use the else statement
+                             (cond
                                [(equal? (property-prefix x) 'u)
                                 (map url->string
                                      (property-value x))]
                                [(equal? (property-prefix x) 'dt)
-                                (map datetime->iso8601
+                                (map (λ (v)
+                                       (if (datetime? v)
+                                           (datetime->iso8601 v)
+                                           v))
                                      (property-value x))]
                                [(equal? (property-prefix x) 'e)
                                 (property-value x)]
@@ -53,10 +60,7 @@
                                            v
                                            (microformat->jsexpr v)))
                                      (property-value x))]))]))
-      
 
-
-                        
 
 (provide
  (contract-out
@@ -73,5 +77,4 @@
                        (properties (listof property?))
                        (children (listof microformat?))
                        (experimental boolean?))]
-  [microformat->jsexpr (microformat? . -> . jsexpr?)]
-  ))
+  [microformat->jsexpr (microformat? . -> . jsexpr?)]))
