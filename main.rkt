@@ -45,8 +45,10 @@
 
 
 (define (property->symbol property)
-  (string->symbol (string-append (cadr (string-split property
-                                                     "-")))))
+  (string->symbol (string-join
+                   (cdr (string-split property
+                                      "-"))
+                   "-")))
 
 
 (define (parse-p-* element class-list)
@@ -111,6 +113,7 @@
 
 
 (define (parse-properties element)
+  (println element)
   (append
    (parse-p-* element (find-class "p-.+" element))
    (parse-u-* element (find-class "u-.+" element))
@@ -124,7 +127,7 @@
                (append (if (and (not (findf (λ (p)
                                               (or (equal? (property-title p) 'name)
                                                   (member (property-prefix p) (list 'a 'e))))
-                                              (microformat-properties mf)))
+                                            (microformat-properties mf)))
                                 (null? (microformat-children mf)))
                            (list (property 'h
                                            'name
@@ -155,15 +158,15 @@
                                             (microformat-properties mf)))
                                 (null? (microformat-children mf)))
                            (let ([implied-url (let ([n (sxml:element-name element)])
-                                                   (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                                       (and (equal? n 'object) (find-attr 'data element))
-                                                       ; TODO: other rules
-                                                       ))])
+                                                (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
+                                                    (and (equal? n 'object) (find-attr 'data element))
+                                                    ; TODO: other rules
+                                                    ))])
                              (if implied-url
                                  (list (property 'h
-                                           'name
-                                           (list implied-url)
-                                           #f))
+                                                 'name
+                                                 (list implied-url)
+                                                 #f))
                                  null))
                            null)
                        (microformat-properties mf))
