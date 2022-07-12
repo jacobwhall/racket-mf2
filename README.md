@@ -16,6 +16,17 @@ You are welcome to open an issue if you'd like to see support added.
 
 You are welcome to [open an issue](https://github.com/jacobwhall/racket-microformats/issues), [submit a pull request](https://github.com/jacobwhall/racket-microformats/pulls), or [get in touch with me](mailto:email@jacobhall.net).
 
+### Running tests
+
+To run the [microformats test suite](https://github.com/microformats/tests), first clone this repository with the `tests/` submodule:
+```
+git clone --recurse-submodules git@github.com:jacobwhall/racket-mf2.git
+```
+…and run the tests using `raco test`.
+```
+raco test tests.rkt
+```
+
 ## Acknowledgements
 
 Shoutout to [Tantek Çelik](https://tantek.com/), [Ben Ward](https://benward.uk/), and the other editors of the microformats specification
