@@ -8,7 +8,7 @@
          racket/hash
          "structures.rkt")
 
-(provide (contract-out [string->microformats (string? . -> . jsexpr?)]))
+(provide (contract-out [string->microformats (string? url? . -> . jsexpr?)]))
 
 
 (define (find-attr attr-name
@@ -25,7 +25,18 @@
              (equal? result ""))
         null
         result)))
-  
+
+
+(define (if-attr attr-name
+                 element
+                 #:noblank [noblank #f])
+  (let ([find-attr-result (find-attr attr-name
+                                     element
+                                     #:noblank noblank)])
+    (if (null? find-attr-result)
+        #f
+        find-attr-result)))
+
 
 (define (find-class pattern
                     element)
@@ -50,22 +61,34 @@
         (car children)
         #f)))
 
-(define (text-content element) ; TODO:  removing all leading/trailing whitespace and nested <script> & <style> elements beforehand
+(define (text-content element) ; TODO:  removing nested <script> & <style> elements
   (string-trim (apply string-append (map (λ (n) (cond [(string? n) n]
-                             [(sxml:element? n) (text-content n)]
-                             [else ""]))
-            (sxml:content element)))))
+                                                      [(sxml:element? n) (text-content n)]
+                                                      [else ""]))
+                                         (sxml:content element)))))
+
+(define (html-content element)
+  (string-trim (srl:sxml->html-noindent element))) ; TODO: investigate potential issues with SXML serialization function. see https://docs.racket-lang.org/sxml/srl.html
 
 
-(define (value-class-pattern element) ; https://microformats.org/wiki/value-class-pattern
-  (let ([value-kid ((select-kids (λ (x) (find-class "value" x))) element)])
-    (if (pair? value-kid)
-        (let ([n (sxml:element-name (car value-kid))]) ; TODO: correctly handle multiple matching children
-          (or (and (member n (list 'img 'area)) (find-attr 'alt value-kid))
-              (and (equal? n 'data) (or (find-attr 'value value-kid)
-                                        (sxml:text value-kid)))
-              (and (equal? n 'abbr) (find-attr 'value value-kid))
-              (sxml:text value-kid)))
+(define (value-class-pattern element
+                             #:dt [dt #f]) ; https://microformats.org/wiki/value-class-pattern
+  (let ([val-children ((select-kids (λ (x) (find-class "value" x))) element)])
+    (if (pair? val-children)
+        (let ([n (sxml:element-name (car val-children))]
+              [val-elem (car val-children)]) ; TODO: correctly handle multiple matching children
+          (if dt
+          (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
+              (and (equal? n 'data) (or (if-attr 'value val-elem)
+                                        (text-content val-elem)))
+              (and (equal? n 'abbr) (if-attr 'value val-elem))
+              (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-elem))
+              (text-content val-elem))
+          (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
+              (and (equal? n 'data) (or (if-attr 'value val-elem)
+                                        (text-content val-elem)))
+              (and (equal? n 'abbr) (if-attr 'value val-elem))
+              (text-content val-elem))))
         #f)))
 
 
@@ -95,15 +118,15 @@
          (property 'u
                    (property->symbol class)
                    (list (string->url (let ([n (sxml:element-name element)])
-                                        (or (and (member n (list 'a 'area 'link)) (find-attr 'href element))
-                                            (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                            (and (member n (list 'audio 'video 'source 'iframe)) (find-attr 'src element))
-                                            (and (equal? n 'video) (find-attr 'poster element))
-                                            (and (equal? n 'object) (find-attr 'data element))
-                                            (and (member n (list 'audio 'video 'source 'iframe)) (find-attr 'src element))
+                                        (or (and (member n (list 'a 'area 'link)) (if-attr 'href element))
+                                            (and (equal? n 'img) (if-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
+                                            (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
+                                            (and (equal? n 'video) (if-attr 'poster element))
+                                            (and (equal? n 'object) (if-attr 'data element))
+                                            (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
                                             (value-class-pattern element)
-                                            (and (equal? n 'abbr) (find-attr 'title element))
-                                            (and (member n (list 'data 'input)) (find-attr 'value element))
+                                            (and (equal? n 'abbr) (if-attr 'title element))
+                                            (and (member n (list 'data 'input)) (if-attr 'value element))
                                             (text-content element)))))
                    #f))
        class-list))
@@ -114,28 +137,29 @@
          (property 'dt
                    (property->symbol class)
                    (list (let ([n (sxml:element-name element)])
-                           (or (let ([vcp (value-class-pattern element)])
+                           (or (let ([vcp (value-class-pattern element
+                                                               #:dt #t)])
                                  (and vcp
-                                      (iso8601->datetime vcp))) ; TODO: more permissive datetime parsing (also, allow for +0000 on iso8601 datetimes?)
-                               (and (member n (list 'time 'ins 'del)) (find-attr 'datetime element))
-                               (and (equal? n 'abbr) (find-attr 'title element))
-                               (and (member n (list 'data 'input)) (find-attr 'value element))
+                                      (with-handlers ([exn? (λ (exn) vcp)])
+                                        (iso8601->datetime vcp)))) ; TODO: more permissive datetime parsing (also, allow for +0000 on iso8601 datetimes?)
+                               (and (member n (list 'time 'ins 'del)) (if-attr 'datetime element))
+                               (and (equal? n 'abbr) (if-attr 'title element))
+                               (and (member n (list 'data 'input)) (if-attr 'value element))
                                (text-content element))))
                    #f))
        class-list))
 
 
 (define (parse-e-* element class-list)
-  (map (λ (class)
-         (property 'e
-                   (property->symbol class)
-                   (list (make-hasheq (list (cons 'value
-                                                  (car (sxml:content element))) ; TODO: proper html serialization, remove leading/trailing whitespace
-                                            (cons 'html
-                                                  (text-content element)))))
-                   #f)) 
-       class-list))
-
+         (map (λ (class)
+                (property 'e
+                          (property->symbol class)
+                          (list (make-hasheq (list (cons 'value
+                                                         (html-content element))
+                                                   (cons 'html
+                                                         (text-content element)))))
+                          #f)) 
+              class-list))
 
 (define (parse-properties element)
   (append
@@ -158,11 +182,11 @@
                              (list (property 'h
                                              'name
                                              (list (let ([n (sxml:element-name element)])
-                                                     (or (and (member n (list 'img 'area)) (find-attr 'alt element))
-                                                         (and (equal? n 'abbr) (find-attr 'title element))
-                                                         (and (equal? (sxml:element-name only-child) 'img) (find-attr 'alt only-child #:noblank #t))
-                                                         (and (equal? (sxml:element-name only-child) 'area) (find-attr 'alt only-child #:noblank #t))
-                                                         (and (equal? (sxml:element-name only-child) 'abbr) (find-attr 'title only-child #:noblank #t))
+                                                     (or (and (member n (list 'img 'area)) (if-attr 'alt element))
+                                                         (and (equal? n 'abbr) (if-attr 'title element))
+                                                         (and (equal? (sxml:element-name only-child) 'img) (if-attr 'alt only-child #:noblank #t))
+                                                         (and (equal? (sxml:element-name only-child) 'area) (if-attr 'alt only-child #:noblank #t))
+                                                         (and (equal? (sxml:element-name only-child) 'abbr) (if-attr 'title only-child #:noblank #t))
                                                          ; TODO: other rules
                                                          (text-content element))))
                                              #f))
@@ -178,7 +202,7 @@
                                                      (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
                                                          (and (equal? n 'object) (find-attr 'data element))
                                                          ; TODO: other rules
-                                                         (sxml:text element))))
+                                                         (text-content element))))
                                              #f))
                              null)
                          (if (and (not (findf (λ (p)
@@ -245,8 +269,9 @@
                                                          parsed-children)
                                                  (filter microformat? parsed-children)
                                                  #f))]
-                 [else (process-duplicates (append properties
-                                                   parsed-children))])))
+                 [else (append (filter (λ (c) (not (property? c))) parsed-children)
+                        (process-duplicates (append properties
+                                                   (filter property? parsed-children))))])))
        elements))
 
 
@@ -254,18 +279,34 @@
   (filter microformat?
           (recursive-parse element-list)))
 
-(define (element->rels element)
-  (let ([href (find-attr 'href element)]
+(define (parse-href element
+                    base-url)
+  (url->string
+   (if (null? (find-attr 'href element))
+       base-url
+       (let ([href (find-attr 'href element)])
+         (if (regexp-match url-regexp
+                           href)
+             (cond [(url-host (string->url href))
+                    (string->url href)]
+                   [(combine-url/relative base-url
+                                          href)])
+             base-url)))))
+
+
+(define (element->rels element
+                       base-url)
+  (let ([href (parse-href element
+                          base-url)]
         [rels (if (pair? (find-attr 'rel element))
                   (string-split (find-attr 'rel element))
                   null)])
-    (cons (if (and (list? href)
-                   (pair? rels))
+    (cons (if (pair? rels)
               (hasheq)
               (make-immutable-hasheq (map (λ (attr) (cons (string->symbol attr)
                                                           (list href)))
                                           rels)))
-          (cons (string->symbol (find-attr 'href element))
+          (cons (string->symbol href)
                 (make-hasheq (filter pair? (append (list (cons 'rels
                                                                rels))
                                                    (map (λ (attr)
@@ -278,11 +319,13 @@
                                                               'media
                                                               'title))
                                                    (list (cons 'text
-                                                               (sxml:text element))))))))))
+                                                               (text-content element))))))))))
 
-(define (string->microformats input)
+(define (string->microformats input
+                              base-url)
   (let ([input-doc (html->xexp input)])
-    (let ([rel-pairs (map element->rels
+    (let ([rel-pairs (map (λ (e) (element->rels e
+                                                base-url))
                           ((sxpath "//a|//link|//area[@rel]")
                            input-doc))])
       (make-hasheq (list (cons 'items

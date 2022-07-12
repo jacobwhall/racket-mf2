@@ -65,7 +65,8 @@
  (contract-out
   [struct property ((prefix (or/c 'p 'u 'dt 'e 'h))
                     (title symbol?)
-                    (value (or/c (or/c (listof string?) (listof microformat?))
+                    (value (or/c (listof string?)
+                                 (listof microformat?)
                                  (listof datetime?)
                                  (listof url?)
                                  (listof (hash/c (or/c 'html
