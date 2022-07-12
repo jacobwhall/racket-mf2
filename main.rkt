@@ -12,13 +12,19 @@
 
 
 (define (find-attr attr-name
-                   element)
-  (let ([attr-list (sxml:attr-list element)])
-    (let ([result
-           (assoc attr-name
-                  attr-list)])
-      (cond [result (cadr result)]
-            [else null]))))
+                   element
+                   #:noblank [noblank #f])
+  (let ([result 
+         (let ([attr-list (sxml:attr-list element)])
+           (let ([result
+                  (assoc attr-name
+                         attr-list)])
+             (cond [result (cadr result)]
+                   [else null])))])
+    (if (and noblank
+             (equal? result ""))
+        null
+        result)))
   
 
 (define (find-class pattern
@@ -30,6 +36,25 @@
             (regexp-split #rx" "
                           (cond [(null? class) ""]
                                 [else class])))))
+
+
+(define (find-h-types element)
+  (map (λ (s) (string->symbol (substring s 2)))
+       (find-class "h-.+" element)))
+
+
+(define (find-only-child element)
+  (let ([children (sxml:child-elements element)])
+    (if (and (pair? children)
+             (null? (cdr children)))
+        (car children)
+        #f)))
+
+(define (text-content element) ; TODO:  removing all leading/trailing whitespace and nested <script> & <style> elements beforehand
+  (string-trim (apply string-append (map (λ (n) (cond [(string? n) n]
+                             [(sxml:element? n) (text-content n)]
+                             [else ""]))
+            (sxml:content element)))))
 
 
 (define (value-class-pattern element) ; https://microformats.org/wiki/value-class-pattern
@@ -60,7 +85,7 @@
                                (and (member n (list 'abbr 'link)) (find-attr 'title element))
                                (and (member n (list 'data 'input)) (find-attr 'value element))
                                (and (member n (list 'img 'area)) (find-attr 'alt element))
-                               (sxml:text element))))
+                               (text-content element))))
                    #f))
        class-list))
 
@@ -79,7 +104,7 @@
                                             (value-class-pattern element)
                                             (and (equal? n 'abbr) (find-attr 'title element))
                                             (and (member n (list 'data 'input)) (find-attr 'value element))
-                                            (sxml:text element))))) ; TODO:  removing all leading/trailing whitespace and nested <script> & <style> elements beforehand
+                                            (text-content element)))))
                    #f))
        class-list))
 
@@ -95,7 +120,7 @@
                                (and (member n (list 'time 'ins 'del)) (find-attr 'datetime element))
                                (and (equal? n 'abbr) (find-attr 'title element))
                                (and (member n (list 'data 'input)) (find-attr 'value element))
-                               (sxml:text element))))
+                               (text-content element))))
                    #f))
        class-list))
 
@@ -107,13 +132,12 @@
                    (list (make-hasheq (list (cons 'value
                                                   (car (sxml:content element))) ; TODO: proper html serialization, remove leading/trailing whitespace
                                             (cons 'html
-                                                  (sxml:text element)))))
+                                                  (text-content element)))))
                    #f)) 
-       class-list)) ; TODO (make sure to drop nested script, style tags; replace images with alt or src, removing leading/trailing whitespace)
+       class-list))
 
 
 (define (parse-properties element)
-  (println element)
   (append
    (parse-p-* element (find-class "p-.+" element))
    (parse-u-* element (find-class "u-.+" element))
@@ -123,55 +147,60 @@
 
 (define (imply-properties element
                           mf)
-  (microformat (microformat-types mf)
-               (append (if (and (not (findf (λ (p)
-                                              (or (equal? (property-title p) 'name)
-                                                  (member (property-prefix p) (list 'a 'e))))
-                                            (microformat-properties mf)))
-                                (null? (microformat-children mf)))
-                           (list (property 'h
-                                           'name
-                                           (list (let ([n (sxml:element-name element)])
-                                                   (or (and (member n (list 'img 'area)) (find-attr 'alt element))
-                                                       (and (equal? n 'abbr) (find-attr 'title element))
-                                                       ; TODO: other rules
-                                                       (sxml:text element)))) ; TODO:  removing all leading/trailing whitespace and nested <script> & <style> elements beforehand
-                                           #f))
-                           null)
-                       (if (and (not (findf (λ (p)
-                                              (or (equal? (property-title p) 'photo)
-                                                  (equal? (property-prefix p) 'u)))
-                                            (microformat-properties mf)))
-                                (null? (microformat-children mf)))
-                           (list (property 'h
-                                           'name
-                                           (list (let ([n (sxml:element-name element)])
-                                                   (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                                       (and (equal? n 'object) (find-attr 'data element))
-                                                       ; TODO: other rules
-                                                       (sxml:text element)))) ; TODO:  removing all leading/trailing whitespace and nested <script> & <style> elements beforehand
-                                           #f))
-                           null)
-                       (if (and (not (findf (λ (p)
-                                              (or (equal? (property-title p) 'url)
-                                                  (equal? (property-prefix p) 'u)))
-                                            (microformat-properties mf)))
-                                (null? (microformat-children mf)))
-                           (let ([implied-url (let ([n (sxml:element-name element)])
-                                                (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                                    (and (equal? n 'object) (find-attr 'data element))
-                                                    ; TODO: other rules
-                                                    ))])
-                             (if implied-url
-                                 (list (property 'h
-                                                 'name
-                                                 (list implied-url)
-                                                 #f))
-                                 null))
-                           null)
-                       (microformat-properties mf))
-               (microformat-children mf)
-               (microformat-experimental mf)))
+  (let ([children (sxml:child-elements element)]
+        [only-child (find-only-child element)])
+    (microformat (microformat-types mf)
+                 (append (if (and (not (findf (λ (p)
+                                                (or (equal? (property-title p) 'name)
+                                                    (member (property-prefix p) (list 'a 'e))))
+                                              (microformat-properties mf)))
+                                  (null? (microformat-children mf)))
+                             (list (property 'h
+                                             'name
+                                             (list (let ([n (sxml:element-name element)])
+                                                     (or (and (member n (list 'img 'area)) (find-attr 'alt element))
+                                                         (and (equal? n 'abbr) (find-attr 'title element))
+                                                         (and (equal? (sxml:element-name only-child) 'img) (find-attr 'alt only-child #:noblank #t))
+                                                         (and (equal? (sxml:element-name only-child) 'area) (find-attr 'alt only-child #:noblank #t))
+                                                         (and (equal? (sxml:element-name only-child) 'abbr) (find-attr 'title only-child #:noblank #t))
+                                                         ; TODO: other rules
+                                                         (text-content element))))
+                                             #f))
+                             null)
+                         (if (and (not (findf (λ (p)
+                                                (or (equal? (property-title p) 'photo)
+                                                    (equal? (property-prefix p) 'u)))
+                                              (microformat-properties mf)))
+                                  (null? (microformat-children mf)))
+                             (list (property 'h
+                                             'name
+                                             (list (let ([n (sxml:element-name element)])
+                                                     (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
+                                                         (and (equal? n 'object) (find-attr 'data element))
+                                                         ; TODO: other rules
+                                                         (sxml:text element))))
+                                             #f))
+                             null)
+                         (if (and (not (findf (λ (p)
+                                                (or (equal? (property-title p) 'url)
+                                                    (equal? (property-prefix p) 'u)))
+                                              (microformat-properties mf)))
+                                  (null? (microformat-children mf)))
+                             (let ([implied-url (let ([n (sxml:element-name element)])
+                                                  (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
+                                                      (and (equal? n 'object) (find-attr 'data element))
+                                                      ; TODO: other rules
+                                                      ))])
+                               (if implied-url
+                                   (list (property 'h
+                                                   'name
+                                                   (list implied-url)
+                                                   #f))
+                                   null))
+                             null)
+                         (microformat-properties mf))
+                 (microformat-children mf)
+                 (microformat-experimental mf))))
 
 
 (define (process-duplicates properties)
@@ -195,8 +224,7 @@
 
 (define (recursive-parse elements)
   (map (λ (element)
-         (let ([h-types (map (λ (s) (string->symbol (substring s 2)))
-                             (find-class "h-.+" element))]
+         (let ([h-types (find-h-types element)]
                [parsed-children (flatten (recursive-parse (sxml:child-elements element)))]
                [properties (parse-properties element)])
            (cond [(and (pair? h-types)
@@ -228,7 +256,9 @@
 
 (define (element->rels element)
   (let ([href (find-attr 'href element)]
-        [rels (string-split (find-attr 'rel element))])
+        [rels (if (pair? (find-attr 'rel element))
+                  (string-split (find-attr 'rel element))
+                  null)])
     (cons (if (and (list? href)
                    (pair? rels))
               (hasheq)
