@@ -44,5 +44,5 @@
 (recursive-test (flatten (map (λ (d) (directory-list d
                                                      #:build? #t))
                               (directory-list (build-path (current-directory)
-                                                          "tests/tests/tests/microformats-v2")
+                                                          "tests/tests/microformats-v2")
                                               #:build? #t))))
