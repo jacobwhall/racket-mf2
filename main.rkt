@@ -286,18 +286,23 @@
           (recursive-parse element-list
                            #f)))
 
+
+(define (is-valid-url? href-string)
+  (if (regexp-match url-regexp
+                    href-string)
+      (url-host (string->url href-string))
+      #f))
+
+
 (define (parse-href element
                     base-url)
   (url->string
    (if (null? (find-attr 'href element))
        base-url
        (let ([href (find-attr 'href element)])
-         (if (regexp-match url-regexp
-                           href)
-             (cond [(url-host (string->url href))
-                    (string->url href)]
-                   [(combine-url/relative base-url
-                                          href)])
+         (if (is-valid-url? href)
+             (combine-url/relative base-url
+                                   href)
              base-url)))))
 
 
@@ -328,11 +333,25 @@
                                                    (list (cons 'text
                                                                (text-content element))))))))))
 
+
+(define (determine-base-url input-doc
+                            base-url)
+  (let ([base ((sxpath "//base[@href and string-length(normalize-space(@href))]") input-doc)])
+    (if (null? base)
+        base-url
+        (let ([href (find-attr 'href (car base))])
+          (if (is-valid-url? href)
+              href
+              (combine-url/relative base-url
+                                   href))))))
+
+
 (define (string->microformats input
                               base-url)
   (let ([input-doc (html->xexp input)])
     (let ([rel-pairs (map (λ (e) (element->rels e
-                                                base-url))
+                                                (determine-base-url input-doc
+                                                                    base-url)))
                           ((sxpath "//a[@rel]|//link[@rel]|//area[@rel]")
                            input-doc))])
       (make-hasheq (list (cons 'items
