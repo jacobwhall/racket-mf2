@@ -16,6 +16,7 @@
 (struct microformat
   (types
    properties
+   value
    children
    experimental)
   #:transparent)
@@ -31,12 +32,14 @@
 
 
 (define (microformat->jsexpr x)
-  (cond [(microformat? x) (make-hasheq (filter (λ (y) (or (pair? (cdr y)) (hash? (cdr y))))
+  (cond [(microformat? x) (make-hasheq (filter (λ (y) (or (pair? (cdr y)) (hash? (cdr y)) (string? (cdr y))))
                                                (list (cons 'type
                                                            (microformat-type-strings x))
                                                      (cons 'properties
                                                            (make-hasheq (map microformat->jsexpr
                                                                              (microformat-properties x))))
+                                                     (cons 'value
+                                                           (microformat-value x))
                                                      (cons 'children
                                                            (map microformat->jsexpr
                                                                 (microformat-children x))))))]
@@ -75,6 +78,7 @@
                     (experimental boolean?))]
   [struct microformat ((types (listof symbol?))
                        (properties (listof property?))
+                       (value (or/c string? #f))
                        (children (listof microformat?))
                        (experimental boolean?))]
   [microformat->jsexpr (microformat? . -> . jsexpr?)]))

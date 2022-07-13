@@ -170,12 +170,14 @@
 
 
 (define (imply-properties element
-                          mf)
+                          mf
+                          in-h-*)
   (let ([no-nested (not (or (pair? (microformat-children mf))
                             (findf microformat? (flatten (microformat-properties mf)))))]
         [only-child (find-only-child element)])
     (microformat (microformat-types mf)
-                 (append (if (and (not (findf (λ (p)
+                 (append 
+                         (if (and (not (findf (λ (p)
                                                 (or (equal? (property-title p) 'name)
                                                     (member (property-prefix p) (list 'a 'e))))
                                               (microformat-properties mf)))
@@ -227,6 +229,18 @@
                                    null))
                              null)
                          (microformat-properties mf))
+                 (let ([props (parse-properties element)]
+                       [p-name (filter-map (λ (p) (and (equal? (property-title p)
+                                                               'name)
+                                                       (property-value p)))
+                                           (microformat-properties mf))])
+                           (if (and in-h-*
+                                    (not (null? props)))
+                               (let ([implied-value (append p-name)])
+                                 (if (null? implied-value)
+                                     #f
+                                     (caar implied-value)))
+                               #f))
                  (microformat-children mf)
                  (microformat-experimental mf))))
 
@@ -265,16 +279,20 @@
                                                       (microformat h-types
                                                                    (filter property?
                                                                            parsed-children)
+                                                                   #f
                                                                    (filter microformat? parsed-children)
-                                                                   #f)))
+                                                                   #f)
+                                                      in-h-*))
                               #f)]
                    [(pair? h-types)
                     (imply-properties element
                                       (microformat h-types
                                                    (filter property?
                                                            parsed-children)
+                                                   #f
                                                    (filter microformat? parsed-children)
-                                                   #f))]
+                                                   #f)
+                                      in-h-*)]
                    [else (append (filter (λ (c) (not (property? c))) parsed-children)
                                  (process-duplicates (append properties
                                                              (filter property? parsed-children))))]))))
@@ -343,7 +361,7 @@
           (if (is-valid-url? href)
               href
               (combine-url/relative base-url
-                                   href))))))
+                                    href))))))
 
 
 (define (string->microformats input
