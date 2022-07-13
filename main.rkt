@@ -205,7 +205,8 @@
   (let ([no-nested (not (or (pair? (microformat-children mf))
                             (findf microformat? (flatten (microformat-properties mf)))))]
         [only-child (find-only-child element)])
-    (microformat (microformat-types mf)
+    (microformat (microformat-id mf)
+                 (microformat-types mf)
                  (append (if (and (not (findf (λ (p)
                                                 (or (equal? (property-title p) 'name)
                                                     (member (property-prefix p) (list 'a 'e))))
@@ -270,7 +271,11 @@
                                            (microformat-properties mf))])
                    (if (and in-h-*
                             (not (null? props)))
-                       (let ([implied-value (append p-name)])
+                       (let ([implied-value (append p-name
+                                                    ; TODO: other rules
+                                                    (if (null? props)
+                                                        null
+                                                        (list (property-value (car props)))))])
                          (if (null? implied-value)
                              #f
                              (caar implied-value)))
@@ -302,7 +307,10 @@
                          base-url
                          in-h-*)
   (map (λ (element)
-         (let ([h-types (find-h-types element)])
+         (let ([h-types (find-h-types element)]
+               [this-id (if-attr 'id
+                                 element
+                                 #:noblank #t)])
            (let ([parsed-children (flatten (recursive-parse (sxml:child-elements element)
                                                             base-url
                                                             (pair? h-types)))]
@@ -313,7 +321,8 @@
                     (property 'h
                               (property-title (car properties))
                               (list (imply-properties element
-                                                      (microformat h-types
+                                                      (microformat this-id
+                                                                   h-types
                                                                    (filter property?
                                                                            parsed-children)
                                                                    #f
@@ -324,7 +333,8 @@
                               #f)]
                    [(pair? h-types)
                     (imply-properties element
-                                      (microformat h-types
+                                      (microformat this-id
+                                                   h-types
                                                    (filter property?
                                                            parsed-children)
                                                    #f

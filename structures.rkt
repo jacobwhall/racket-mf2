@@ -14,7 +14,8 @@
 
 
 (struct microformat
-  (types
+  (id
+   types
    properties
    value
    children
@@ -33,7 +34,9 @@
 
 (define (microformat->jsexpr x)
   (cond [(microformat? x) (make-hasheq (filter (λ (y) (or (pair? (cdr y)) (hash? (cdr y)) (string? (cdr y))))
-                                               (list (cons 'type
+                                               (list (cons 'id
+                                                           (microformat-id x))
+                                                     (cons 'type
                                                            (microformat-type-strings x))
                                                      (cons 'properties
                                                            (make-hasheq (map microformat->jsexpr
@@ -84,7 +87,8 @@
                                                  (or/c string?
                                                        url?)))))
                     (experimental boolean?))]
-  [struct microformat ((types (listof symbol?))
+  [struct microformat ((id (or/c string? #f))
+                       (types (listof symbol?))
                        (properties (listof property?))
                        (value (or/c string? #f))
                        (children (listof microformat?))
