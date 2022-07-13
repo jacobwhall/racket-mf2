@@ -78,17 +78,17 @@
         (let ([n (sxml:element-name (car val-children))]
               [val-elem (car val-children)]) ; TODO: correctly handle multiple matching children
           (if dt
-          (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
-              (and (equal? n 'data) (or (if-attr 'value val-elem)
-                                        (text-content val-elem)))
-              (and (equal? n 'abbr) (if-attr 'value val-elem))
-              (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-elem))
-              (text-content val-elem))
-          (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
-              (and (equal? n 'data) (or (if-attr 'value val-elem)
-                                        (text-content val-elem)))
-              (and (equal? n 'abbr) (if-attr 'value val-elem))
-              (text-content val-elem))))
+              (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
+                  (and (equal? n 'data) (or (if-attr 'value val-elem)
+                                            (text-content val-elem)))
+                  (and (equal? n 'abbr) (if-attr 'value val-elem))
+                  (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-elem))
+                  (text-content val-elem))
+              (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
+                  (and (equal? n 'data) (or (if-attr 'value val-elem)
+                                            (text-content val-elem)))
+                  (and (equal? n 'abbr) (if-attr 'value val-elem))
+                  (text-content val-elem))))
         #f)))
 
 
@@ -151,15 +151,15 @@
 
 
 (define (parse-e-* element class-list)
-         (map (λ (class)
-                (property 'e
-                          (property->symbol class)
-                          (list (make-hasheq (list (cons 'value
-                                                         (html-content element))
-                                                   (cons 'html
-                                                         (text-content element)))))
-                          #f)) 
-              class-list))
+  (map (λ (class)
+         (property 'e
+                   (property->symbol class)
+                   (list (make-hasheq (list (cons 'value
+                                                  (html-content element))
+                                            (cons 'html
+                                                  (text-content element)))))
+                   #f)) 
+       class-list))
 
 (define (parse-properties element)
   (append
@@ -171,14 +171,15 @@
 
 (define (imply-properties element
                           mf)
-  (let ([children (sxml:child-elements element)]
+  (let ([no-nested (not (or (pair? (microformat-children mf))
+                            (findf microformat? (flatten (microformat-properties mf)))))]
         [only-child (find-only-child element)])
     (microformat (microformat-types mf)
                  (append (if (and (not (findf (λ (p)
                                                 (or (equal? (property-title p) 'name)
                                                     (member (property-prefix p) (list 'a 'e))))
                                               (microformat-properties mf)))
-                                  (null? (microformat-children mf)))
+                                  no-nested)
                              (list (property 'h
                                              'name
                                              (list (let ([n (sxml:element-name element)])
@@ -195,29 +196,32 @@
                                                 (or (equal? (property-title p) 'photo)
                                                     (equal? (property-prefix p) 'u)))
                                               (microformat-properties mf)))
-                                  (null? (microformat-children mf)))
-                             (list (property 'h
-                                             'name
-                                             (list (let ([n (sxml:element-name element)])
-                                                     (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                                         (and (equal? n 'object) (find-attr 'data element))
-                                                         ; TODO: other rules
-                                                         (text-content element))))
-                                             #f))
+                                  no-nested)
+                             (let ([implied-photo
+                                    (let ([n (sxml:element-name element)])
+                                      (or (and (equal? n 'img) (if-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
+                                          (and (equal? n 'object) (if-attr 'data element))
+                                          ; TODO: other rules
+                                          ))])
+                               (if implied-photo
+                                   (list (property 'h
+                                                   'photo
+                                                   (list implied-photo)
+                                                   #f))
+                                   null))
                              null)
                          (if (and (not (findf (λ (p)
                                                 (or (equal? (property-title p) 'url)
                                                     (equal? (property-prefix p) 'u)))
                                               (microformat-properties mf)))
-                                  (null? (microformat-children mf)))
+                                  no-nested)
                              (let ([implied-url (let ([n (sxml:element-name element)])
-                                                  (or (and (equal? n 'img) (find-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                                      (and (equal? n 'object) (find-attr 'data element))
+                                                  (or (and (member n (list 'a 'area)) (if-attr 'href element))
                                                       ; TODO: other rules
                                                       ))])
                                (if implied-url
                                    (list (property 'h
-                                                   'name
+                                                   'url
                                                    (list implied-url)
                                                    #f))
                                    null))
@@ -246,38 +250,41 @@
         properties)))
 
 
-(define (recursive-parse elements)
+(define (recursive-parse elements
+                         in-h-*)
   (map (λ (element)
-         (let ([h-types (find-h-types element)]
-               [parsed-children (flatten (recursive-parse (sxml:child-elements element)))]
-               [properties (parse-properties element)])
-           (cond [(and (pair? h-types)
-                       (pair? properties))
-                  (property 'h
-                            (property-title (car properties))
-                            (list (imply-properties element
-                                                    (microformat h-types
-                                                                 (filter property?
-                                                                         parsed-children)
-                                                                 (filter microformat? parsed-children)
-                                                                 #f)))
-                            #f)]
-                 [(pair? h-types)
-                  (imply-properties element
-                                    (microformat h-types
-                                                 (filter property?
-                                                         parsed-children)
-                                                 (filter microformat? parsed-children)
-                                                 #f))]
-                 [else (append (filter (λ (c) (not (property? c))) parsed-children)
-                        (process-duplicates (append properties
-                                                   (filter property? parsed-children))))])))
+         (let ([h-types (find-h-types element)])
+           (let ([parsed-children (flatten (recursive-parse (sxml:child-elements element)
+                                                            (pair? h-types)))]
+                 [properties (parse-properties element)])
+             (cond [(and (pair? h-types)
+                         (pair? properties))
+                    (property 'h
+                              (property-title (car properties))
+                              (list (imply-properties element
+                                                      (microformat h-types
+                                                                   (filter property?
+                                                                           parsed-children)
+                                                                   (filter microformat? parsed-children)
+                                                                   #f)))
+                              #f)]
+                   [(pair? h-types)
+                    (imply-properties element
+                                      (microformat h-types
+                                                   (filter property?
+                                                           parsed-children)
+                                                   (filter microformat? parsed-children)
+                                                   #f))]
+                   [else (append (filter (λ (c) (not (property? c))) parsed-children)
+                                 (process-duplicates (append properties
+                                                             (filter property? parsed-children))))]))))
        elements))
 
 
 (define (parse-elements element-list)
   (filter microformat?
-          (recursive-parse element-list)))
+          (recursive-parse element-list
+                           #f)))
 
 (define (parse-href element
                     base-url)
@@ -298,10 +305,10 @@
                        base-url)
   (let ([href (parse-href element
                           base-url)]
-        [rels (if (pair? (find-attr 'rel element))
-                  (string-split (find-attr 'rel element))
-                  null)])
-    (cons (if (pair? rels)
+        [rels (if (null? (find-attr 'rel element))
+                  null
+                  (string-split (find-attr 'rel element)))])
+    (cons (if (null? rels)
               (hasheq)
               (make-immutable-hasheq (map (λ (attr) (cons (string->symbol attr)
                                                           (list href)))
@@ -326,7 +333,7 @@
   (let ([input-doc (html->xexp input)])
     (let ([rel-pairs (map (λ (e) (element->rels e
                                                 base-url))
-                          ((sxpath "//a|//link|//area[@rel]")
+                          ((sxpath "//a[@rel]|//link[@rel]|//area[@rel]")
                            input-doc))])
       (make-hasheq (list (cons 'items
                                (map microformat->jsexpr
