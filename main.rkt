@@ -113,7 +113,22 @@
        class-list))
 
 
-(define (parse-u-* element class-list)
+(define (is-valid-url? href-string)
+  (if (regexp-match url-regexp
+                    href-string)
+      (url-host (string->url href-string))
+      #f))
+
+
+(define (parse-url url-string
+                   base-url)
+  (combine-url/relative base-url
+                        url-string))
+
+
+(define (parse-u-* element
+                   class-list
+                   base-url)
   (map (λ (class)
          (property 'u
                    (property->symbol class)
@@ -131,9 +146,11 @@
                                                   (text-content element))
                                               (and (equal? n 'img) (not (null? (find-attr 'src element))) (if-attr 'alt element))))])
                            (if (cdr value)
-                               (hasheq 'value (string->url (car value))
+                               (hasheq 'value (parse-url (car value)
+                                                         base-url)
                                        'alt (cdr value))
-                               (string->url (car value)))))
+                               (parse-url (car value)
+                                          base-url))))
                    #f))
        class-list))
 
@@ -167,16 +184,23 @@
                    #f)) 
        class-list))
 
-(define (parse-properties element)
+(define (parse-properties element
+                          base-url)
   (append
-   (parse-p-* element (find-class "p-.+" element))
-   (parse-u-* element (find-class "u-.+" element))
-   (parse-dt-* element (find-class "dt-.+" element))
-   (parse-e-* element (find-class "e-.+" element))))
+   (parse-p-* element
+              (find-class "p-.+" element))
+   (parse-u-* element
+              (find-class "u-.+" element)
+              base-url)
+   (parse-dt-* element
+               (find-class "dt-.+" element))
+   (parse-e-* element
+              (find-class "e-.+" element))))
 
 
 (define (imply-properties element
                           mf
+                          base-url
                           in-h-*)
   (let ([no-nested (not (or (pair? (microformat-children mf))
                             (findf microformat? (flatten (microformat-properties mf)))))]
@@ -230,14 +254,16 @@
                                                       ; TODO: other rules
                                                       ))])
                                (if implied-url
-                                   (list (property 'h
+                                   (list (property 'u
                                                    'url
-                                                   (list implied-url)
+                                                   (list (parse-url implied-url
+                                                                    base-url))
                                                    #f))
                                    null))
                              null)
                          (microformat-properties mf))
-                 (let ([props (parse-properties element)]
+                 (let ([props (parse-properties element
+                                                base-url)]
                        [p-name (filter-map (λ (p) (and (equal? (property-title p)
                                                                'name)
                                                        (property-value p)))
@@ -273,12 +299,15 @@
 
 
 (define (recursive-parse elements
+                         base-url
                          in-h-*)
   (map (λ (element)
          (let ([h-types (find-h-types element)])
            (let ([parsed-children (flatten (recursive-parse (sxml:child-elements element)
+                                                            base-url
                                                             (pair? h-types)))]
-                 [properties (parse-properties element)])
+                 [properties (parse-properties element
+                                               base-url)])
              (cond [(and (pair? h-types)
                          (pair? properties))
                     (property 'h
@@ -290,6 +319,7 @@
                                                                    #f
                                                                    (filter microformat? parsed-children)
                                                                    #f)
+                                                      base-url
                                                       in-h-*))
                               #f)]
                    [(pair? h-types)
@@ -300,6 +330,7 @@
                                                    #f
                                                    (filter microformat? parsed-children)
                                                    #f)
+                                      base-url
                                       in-h-*)]
                    [else (append (filter (λ (c) (not (property? c))) parsed-children)
                                  (process-duplicates (append properties
@@ -307,17 +338,12 @@
        elements))
 
 
-(define (parse-elements element-list)
+(define (parse-elements element-list
+                        base-url)
   (filter microformat?
           (recursive-parse element-list
+                           base-url
                            #f)))
-
-
-(define (is-valid-url? href-string)
-  (if (regexp-match url-regexp
-                    href-string)
-      (url-host (string->url href-string))
-      #f))
 
 
 (define (parse-href element
@@ -326,10 +352,8 @@
    (if (null? (find-attr 'href element))
        base-url
        (let ([href (find-attr 'href element)])
-         (if (is-valid-url? href)
-             (combine-url/relative base-url
-                                   href)
-             base-url)))))
+         (parse-url (find-attr 'href element)
+                    base-url)))))
 
 
 (define (element->rels element
@@ -367,7 +391,7 @@
         base-url
         (let ([href (find-attr 'href (car base))])
           (if (is-valid-url? href)
-              href
+              (string->url href)
               (combine-url/relative base-url
                                     href))))))
 
@@ -382,7 +406,9 @@
                            input-doc))])
       (make-hasheq (list (cons 'items
                                (map microformat->jsexpr
-                                    (parse-elements (sxml:child-elements input-doc))))
+                                    (parse-elements (sxml:child-elements input-doc)
+                                                    (determine-base-url input-doc
+                                                                        base-url))))
                          (cons 'rels
                                (if (pair? rel-pairs)
                                    (apply hash-union
