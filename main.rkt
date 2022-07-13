@@ -117,17 +117,23 @@
   (map (λ (class)
          (property 'u
                    (property->symbol class)
-                   (list (string->url (let ([n (sxml:element-name element)])
-                                        (or (and (member n (list 'a 'area 'link)) (if-attr 'href element))
-                                            (and (equal? n 'img) (if-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                            (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
-                                            (and (equal? n 'video) (if-attr 'poster element))
-                                            (and (equal? n 'object) (if-attr 'data element))
-                                            (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
-                                            (value-class-pattern element)
-                                            (and (equal? n 'abbr) (if-attr 'title element))
-                                            (and (member n (list 'data 'input)) (if-attr 'value element))
-                                            (text-content element)))))
+                   (list (let ([value (let ([n (sxml:element-name element)])
+                                        (cons (or (and (member n (list 'a 'area 'link))
+                                                       (if-attr 'href element))
+                                                  (and (equal? n 'img) (if-attr 'src element))
+                                                  (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
+                                                  (and (equal? n 'video) (if-attr 'poster element))
+                                                  (and (equal? n 'object) (if-attr 'data element))
+                                                  (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
+                                                  (value-class-pattern element)
+                                                  (and (equal? n 'abbr) (if-attr 'title element))
+                                                  (and (member n (list 'data 'input)) (if-attr 'value element))
+                                                  (text-content element))
+                                              (and (equal? n 'img) (not (null? (find-attr 'src element))) (if-attr 'alt element))))])
+                           (if (cdr value)
+                               (hasheq 'value (string->url (car value))
+                                       'alt (cdr value))
+                               (string->url (car value)))))
                    #f))
        class-list))
 
@@ -176,8 +182,7 @@
                             (findf microformat? (flatten (microformat-properties mf)))))]
         [only-child (find-only-child element)])
     (microformat (microformat-types mf)
-                 (append 
-                         (if (and (not (findf (λ (p)
+                 (append (if (and (not (findf (λ (p)
                                                 (or (equal? (property-title p) 'name)
                                                     (member (property-prefix p) (list 'a 'e))))
                                               (microformat-properties mf)))
@@ -201,14 +206,17 @@
                                   no-nested)
                              (let ([implied-photo
                                     (let ([n (sxml:element-name element)])
-                                      (or (and (equal? n 'img) (if-attr 'src element)) ; TODO: if there is an [alt], we need to include it. see section 1.5
-                                          (and (equal? n 'object) (if-attr 'data element))
+                                      (or (and (equal? n 'img) (cons (if-attr 'src element) #f))
+                                          (and (equal? n 'object) (cons (if-attr 'data element) #f))
                                           ; TODO: other rules
                                           ))])
                                (if implied-photo
                                    (list (property 'h
                                                    'photo
-                                                   (list implied-photo)
+                                                   (list (if (cdr implied-photo)
+                                                             (hasheq 'value (car implied-photo)
+                                                                     'alt (cdr implied-photo))
+                                                             (car implied-photo)))
                                                    #f))
                                    null))
                              null)
@@ -234,13 +242,13 @@
                                                                'name)
                                                        (property-value p)))
                                            (microformat-properties mf))])
-                           (if (and in-h-*
-                                    (not (null? props)))
-                               (let ([implied-value (append p-name)])
-                                 (if (null? implied-value)
-                                     #f
-                                     (caar implied-value)))
-                               #f))
+                   (if (and in-h-*
+                            (not (null? props)))
+                       (let ([implied-value (append p-name)])
+                         (if (null? implied-value)
+                             #f
+                             (caar implied-value)))
+                       #f))
                  (microformat-children mf)
                  (microformat-experimental mf))))
 

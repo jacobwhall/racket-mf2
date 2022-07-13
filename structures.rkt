@@ -46,7 +46,11 @@
         [(property? x) (cons (property-title x)
                              (cond
                                [(equal? (property-prefix x) 'u)
-                                (map url->string
+                                (map (λ (v)
+                                       (if (hash? v)
+                                           (hasheq 'alt (hash-ref v 'alt)
+                                                   'value (url->string (hash-ref v 'value)))
+                                           (url->string v)))
                                      (property-value x))]
                                [(equal? (property-prefix x) 'dt)
                                 (map (λ (v)
@@ -74,7 +78,11 @@
                                  (listof url?)
                                  (listof (hash/c (or/c 'html
                                                        'value)
-                                                 string?))))
+                                                 string?))
+                                 (listof (hash/c (or/c 'alt
+                                                       'value)
+                                                 (or/c string?
+                                                       url?)))))
                     (experimental boolean?))]
   [struct microformat ((types (listof symbol?))
                        (properties (listof property?))
