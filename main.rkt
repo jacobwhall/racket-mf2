@@ -58,7 +58,9 @@
   (let ([children (sxml:child-elements element)])
     (if (and (pair? children)
              (null? (cdr children)))
-        (car children)
+        (if (null? (find-h-types (car children)))
+            (car children)
+            #f)
         #f)))
 
 (define (text-content element) ; TODO:  removing nested <script> & <style> elements
@@ -198,18 +200,30 @@
               (find-class "e-.+" element))))
 
 
+(define (only-of-type type
+                      element)
+  (let ([children-of-type  (filter (λ (e) (equal? (sxml:element-name e) type))
+                                   (sxml:child-elements element))])
+    (if (and (pair? children-of-type)
+             (null? (cdr children-of-type)))
+        (car children-of-type)
+        #f)))
+
+
 (define (imply-properties element
                           mf
                           base-url
                           in-h-*)
   (let ([no-nested (not (or (pair? (microformat-children mf))
-                            (findf microformat? (flatten (microformat-properties mf)))))]
+                            (findf microformat?
+                                   (flatten (map property-value
+                                                 (microformat-properties mf))))))]
         [only-child (find-only-child element)])
     (microformat (microformat-id mf)
                  (microformat-types mf)
                  (append (if (and (not (findf (λ (p)
                                                 (or (equal? (property-title p) 'name)
-                                                    (member (property-prefix p) (list 'a 'e))))
+                                                    (member (property-prefix p) (list 'p 'e))))
                                               (microformat-properties mf)))
                                   no-nested)
                              (list (property 'h
@@ -252,6 +266,8 @@
                                   no-nested)
                              (let ([implied-url (let ([n (sxml:element-name element)])
                                                   (or (and (member n (list 'a 'area)) (if-attr 'href element))
+                                                      (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element) #:noblank #t))
+                                                      (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element) #:noblank #t))
                                                       ; TODO: other rules
                                                       ))])
                                (if implied-url
