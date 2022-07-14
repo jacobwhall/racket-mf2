@@ -37,7 +37,7 @@
                                                (list (cons 'id
                                                            (microformat-id x))
                                                      (cons 'type
-                                                           (microformat-type-strings x))
+                                                           (sort (microformat-type-strings x) string<?))
                                                      (cons 'properties
                                                            (make-hasheq (map microformat->jsexpr
                                                                              (microformat-properties x))))
