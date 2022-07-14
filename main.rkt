@@ -70,8 +70,15 @@
                                          (sxml:content element)))))
 
 (define (html-content element)
-  (string-trim (srl:sxml->html-noindent element))) ; TODO: investigate potential issues with SXML serialization function. see https://docs.racket-lang.org/sxml/srl.html
-
+  (println (map (λ (n) (cond [(sxml:element? n)
+                                                 (string-trim (srl:sxml->html-noindent element))]
+                                                [(string? n) n]))
+                                   (sxml:content element)))
+  (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
+                                                 (string-trim (srl:sxml->html-noindent element))]
+                                                [(string? n) n]))
+                                   (sxml:content element)))))
+           
 
 (define (value-class-pattern element
                              #:dt [dt #f]) ; https://microformats.org/wiki/value-class-pattern
