@@ -42,7 +42,9 @@
                                                            (make-hasheq (map microformat->jsexpr
                                                                              (microformat-properties x))))
                                                      (cons 'value
-                                                           (microformat-value x))
+                                                           (if (microformat-value x)
+                                                               (cadr (microformat->jsexpr (microformat-value x)))
+                                                               #f))
                                                      (cons 'children
                                                            (map microformat->jsexpr
                                                                 (microformat-children x))))))]
@@ -70,27 +72,29 @@
                                            (microformat->jsexpr v)))
                                      (property-value x))]))]))
 
+(define property-value/c
+  (or/c (listof string?)
+        (listof microformat?)
+        (listof datetime?)
+        (listof url?)
+        (listof (hash/c (or/c 'html
+                              'value)
+                        string?))
+        (listof (hash/c (or/c 'alt
+                              'value)
+                        (or/c string?
+                              url?)))))
 
 (provide
  (contract-out
   [struct property ((prefix (or/c 'p 'u 'dt 'e 'h))
                     (title symbol?)
-                    (value (or/c (listof string?)
-                                 (listof microformat?)
-                                 (listof datetime?)
-                                 (listof url?)
-                                 (listof (hash/c (or/c 'html
-                                                       'value)
-                                                 string?))
-                                 (listof (hash/c (or/c 'alt
-                                                       'value)
-                                                 (or/c string?
-                                                       url?)))))
+                    (value property-value/c)
                     (experimental boolean?))]
   [struct microformat ((id (or/c string? #f))
                        (types (listof symbol?))
                        (properties (listof property?))
-                       (value (or/c string? #f))
+                       (value (or/c property? #f))
                        (children (listof microformat?))
                        (experimental boolean?))]
   [microformat->jsexpr (microformat? . -> . jsexpr?)]))

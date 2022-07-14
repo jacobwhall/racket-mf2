@@ -212,7 +212,7 @@
                  (null? (cdr children-of-type)))
             (car children-of-type)
             #f))
-  #f))
+      #f))
 
 
 (define (imply-properties element
@@ -223,7 +223,9 @@
                             (findf microformat?
                                    (flatten (map property-value
                                                  (microformat-properties mf))))))]
-        [only-child (find-only-child element)])
+        [only-child (find-only-child element)]
+        [props (parse-properties element
+                                 base-url)])
     (microformat (microformat-id mf)
                  (microformat-types mf)
                  (append (if (and (not (findf (λ (p)
@@ -261,58 +263,72 @@
                                           (and (only-of-type 'img only-child) (cons (if-attr 'src (only-of-type 'img only-child))
                                                                                     (if-attr 'alt (only-of-type 'img only-child))))
                                           (and (only-of-type 'object only-child) (cons (if-attr 'data (only-of-type 'object only-child)) #f))
-                                               ))])
-(if implied-photo
-    (list (property 'u
-                    'photo
-                    (list (if (cdr implied-photo)
-                              (hasheq 'value (parse-url (car implied-photo)
-                                                        base-url)
-                                      'alt (cdr implied-photo))
-                              (parse-url (car implied-photo)
-                                         base-url)))
-                    #f))
-    null))
-null)
-(if (and (not (findf (λ (p)
-                       (or (equal? (property-title p) 'url)
-                           (equal? (property-prefix p) 'u)))
-                     (microformat-properties mf)))
-         no-nested)
-    (let ([implied-url (let ([n (sxml:element-name element)])
-                         (or (and (member n (list 'a 'area)) (if-attr 'href element))
-                             (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element)))
-                             (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element)))
-                             (and (only-of-type 'a only-child) (if-attr 'href (only-of-type 'a only-child)))
-                             (and (only-of-type 'area only-child) (if-attr 'href (only-of-type 'area only-child)))
-                             ))])
-      (if implied-url
-          (list (property 'u
-                          'url
-                          (list (parse-url implied-url
-                                           base-url))
-                          #f))
-          null))
-    null)
-(microformat-properties mf))
-(let ([props (parse-properties element
-                               base-url)]
-      [p-name (filter-map (λ (p) (and (equal? (property-title p)
-                                              'name)
-                                      (property-value p)))
-                          (microformat-properties mf))])
-  (if (not (null? props))
-      (let ([implied-value (append p-name
-                                   ; TODO: other rules
-                                   (if (null? props)
-                                       null
-                                       (list (property-value (car props)))))])
-        (if (null? implied-value)
-            #f
-            (caar implied-value)))
-      #f))
-(microformat-children mf)
-(microformat-experimental mf))))
+                                          ))])
+                               (if implied-photo
+                                   (list (property 'u
+                                                   'photo
+                                                   (list (if (cdr implied-photo)
+                                                             (hasheq 'value (parse-url (car implied-photo)
+                                                                                       base-url)
+                                                                     'alt (cdr implied-photo))
+                                                             (parse-url (car implied-photo)
+                                                                        base-url)))
+                                                   #f))
+                                   null))
+                             null)
+                         (if (and (not (findf (λ (p)
+                                                (or (equal? (property-title p) 'url)
+                                                    (equal? (property-prefix p) 'u)))
+                                              (microformat-properties mf)))
+                                  no-nested)
+                             (let ([implied-url (let ([n (sxml:element-name element)])
+                                                  (or (and (member n (list 'a 'area)) (if-attr 'href element))
+                                                      (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element)))
+                                                      (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element)))
+                                                      (and (only-of-type 'a only-child) (if-attr 'href (only-of-type 'a only-child)))
+                                                      (and (only-of-type 'area only-child) (if-attr 'href (only-of-type 'area only-child)))
+                                                      ))])
+                               (if implied-url
+                                   (list (property 'u
+                                                   'url
+                                                   (list (parse-url implied-url
+                                                                    base-url))
+                                                   #f))
+                                   null))
+                             null)
+                         (microformat-properties mf))
+                 (let ([p-names (if (findf (λ (p) (equal? (property-prefix p) 'p))
+                                           props)
+                                    (filter (λ (p) (and (equal? (property-prefix p) 'p)
+                                                        (equal? (property-title p) 'name)))
+                                            (microformat-properties mf))
+                                    null)]
+                       [e-dicts (filter (λ (p) (and (equal? (property-prefix p) 'e)
+                                                    (property-value p)))
+                                        props)]
+                       [u-urls (if (findf (λ (p) (equal? (property-prefix p) 'u))
+                                          props)
+                                   (filter (λ (p) (and (equal? (property-prefix p)
+                                                               'u)
+                                                       (equal? (property-title p)
+                                                               'url)))
+                                           (microformat-properties mf))
+                                   null)]
+                       [other-valid-props (filter (λ (p) (or (equal? (property-prefix p) 'p)
+                                                             (equal? (property-prefix p) 'u)
+                                                             (equal? (property-prefix p) 'dt)))
+                                                  props)])
+                   (if (not (null? props))
+                       (let ([implied-value (append p-names
+                                                    e-dicts
+                                                    u-urls
+                                                    other-valid-props)])
+                         (if (null? implied-value)
+                             #f
+                             (car implied-value)))
+                       #f))
+                 (microformat-children mf)
+                 (microformat-experimental mf))))
 
 
 (define (process-duplicates properties)
