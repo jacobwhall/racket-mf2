@@ -1,0 +1,21 @@
+name: test
+on: [push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        racket-version: ['8.3', '8.4', '8.5']
+    name: Test in Racket ${{ matrix.racket-version }}
+
+    steps:
+    - uses: actions/checkout@master
+      with:
+        submodules: recursive
+    - name: Setup Racket
+      uses: Bogdanp/setup-racket@v1.8.1
+      with:
+        architecture: x64
+        version: ${{ matrix.racket-version }}
+    - run: raco test tests.rkt
