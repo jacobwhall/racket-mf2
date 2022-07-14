@@ -239,7 +239,9 @@
                                                          (and (equal? (sxml:element-name only-child) 'img) (if-attr 'alt only-child #:noblank #t))
                                                          (and (equal? (sxml:element-name only-child) 'area) (if-attr 'alt only-child #:noblank #t))
                                                          (and (equal? (sxml:element-name only-child) 'abbr) (if-attr 'title only-child #:noblank #t))
-                                                         ; TODO: other rules
+                                                         (and (equal? (sxml:element-name (find-only-child only-child)) 'img) (if-attr 'alt (find-only-child only-child) #:noblank #t))
+                                                         (and (equal? (sxml:element-name (find-only-child only-child)) 'area) (if-attr 'alt (find-only-child only-child) #:noblank #t))
+                                                         (and (equal? (sxml:element-name (find-only-child only-child)) 'abbr) (if-attr 'title (find-only-child only-child) #:noblank #t))
                                                          (text-content element))))
                                              #f))
                              null)
@@ -279,9 +281,10 @@ null)
          no-nested)
     (let ([implied-url (let ([n (sxml:element-name element)])
                          (or (and (member n (list 'a 'area)) (if-attr 'href element))
-                             (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element) #:noblank #t))
-                             (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element) #:noblank #t))
-                             ; TODO: other rules
+                             (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element)))
+                             (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element)))
+                             (and (only-of-type 'a only-child) (if-attr 'href (only-of-type 'a only-child)))
+                             (and (only-of-type 'area only-child) (if-attr 'href (only-of-type 'area only-child)))
                              ))])
       (if implied-url
           (list (property 'u
