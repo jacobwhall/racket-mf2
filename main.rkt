@@ -70,14 +70,10 @@
                                          (sxml:content element)))))
 
 (define (html-content element)
-  (println (map (λ (n) (cond [(sxml:element? n)
-                                                 (string-trim (srl:sxml->html-noindent element))]
-                                                [(string? n) n]))
-                                   (sxml:content element)))
   (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
-                                                 (string-trim (srl:sxml->html-noindent element))]
-                                                [(string? n) n]))
-                                   (sxml:content element)))))
+                                                       (string-trim (srl:sxml->html-noindent element))]
+                                                      [(string? n) n]))
+                                         (sxml:content element)))))
            
 
 (define (value-class-pattern element
@@ -292,8 +288,7 @@
                                                                'name)
                                                        (property-value p)))
                                            (microformat-properties mf))])
-                   (if (and in-h-*
-                            (not (null? props)))
+                   (if (not (null? props))
                        (let ([implied-value (append p-name
                                                     ; TODO: other rules
                                                     (if (null? props)
