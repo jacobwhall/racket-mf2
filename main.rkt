@@ -71,7 +71,7 @@
 
 (define (html-content element)
   (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
-                                                       (string-trim (srl:sxml->html-noindent element))]
+                                                       (string-trim (srl:sxml->html-noindent n))]
                                                       [(string? n) n]))
                                          (sxml:content element)))))
            
@@ -183,9 +183,9 @@
          (property 'e
                    (property->symbol class)
                    (list (make-hasheq (list (cons 'value
-                                                  (html-content element))
+                                                  (text-content element))
                                             (cons 'html
-                                                  (text-content element)))))
+                                                  (html-content element)))))
                    #f)) 
        class-list))
 
@@ -248,17 +248,19 @@
                                   no-nested)
                              (let ([implied-photo
                                     (let ([n (sxml:element-name element)])
-                                      (or (and (equal? n 'img) (cons (if-attr 'src element) #f))
+                                      (or (and (equal? n 'img) (cons (if-attr 'src element) (if-attr 'alt element)))
                                           (and (equal? n 'object) (cons (if-attr 'data element) #f))
                                           ; TODO: other rules
                                           ))])
                                (if implied-photo
-                                   (list (property 'h
+                                   (list (property 'u
                                                    'photo
                                                    (list (if (cdr implied-photo)
-                                                             (hasheq 'value (car implied-photo)
+                                                             (hasheq 'value (parse-url (car implied-photo)
+                                                                                       base-url)
                                                                      'alt (cdr implied-photo))
-                                                             (car implied-photo)))
+                                                             (parse-url (car implied-photo)
+                                                                        base-url)))
                                                    #f))
                                    null))
                              null)
