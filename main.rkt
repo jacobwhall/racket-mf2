@@ -474,4 +474,4 @@
                                           #:combine/key (lambda (k v1 v2)(remove-duplicates (append v1 v2))))
                                    (hasheq)))
                          (cons 'rel-urls
-                               (make-hasheq (map cdr rel-pairs))))))))
+                               (make-hasheq (reverse (map cdr rel-pairs)))))))))
