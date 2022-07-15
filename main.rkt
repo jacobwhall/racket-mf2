@@ -51,7 +51,7 @@
 
 (define (find-h-types element)
   (map (λ (s) (string->symbol (substring s 2)))
-       (find-class "h-.+" element)))
+       (find-class "^h(-[a-z0-9]+)?(-[a-z]+)+$" element)))
 
 
 (define (find-only-child element)
