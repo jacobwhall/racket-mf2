@@ -66,12 +66,12 @@
 (define (text-content element
                       #:notrim [notrim #f]) ; TODO:  removing nested <script> & <style> elements
   (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
-                                                      [(sxml:element? n) (text-content n)]
-                                                      [else ""]))
-                                         (sxml:content element)))])
-  (if notrim
-      tc
-    (string-trim tc))))
+                                                   [(sxml:element? n) (text-content n)]
+                                                   [else ""]))
+                                      (sxml:content element)))])
+    (if notrim
+        tc
+        (string-trim tc))))
 
 (define (html-content element)
   (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
@@ -457,7 +457,8 @@
 
 (define (string->microformats input
                               base-url)
-  (let ([input-doc (html->xexp input)])
+  (let ([input-doc ((sxml:modify (list "//template" 'delete))
+                    (html->xexp input))])
     (let ([rel-pairs (map (λ (e) (element->rels e
                                                 (determine-base-url input-doc
                                                                     base-url)))
