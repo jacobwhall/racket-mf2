@@ -63,11 +63,15 @@
             #f)
         #f)))
 
-(define (text-content element) ; TODO:  removing nested <script> & <style> elements
-  (string-trim (apply string-append (map (λ (n) (cond [(string? n) n]
+(define (text-content element
+                      #:notrim [notrim #f]) ; TODO:  removing nested <script> & <style> elements
+  (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
                                                       [(sxml:element? n) (text-content n)]
                                                       [else ""]))
-                                         (sxml:content element)))))
+                                         (sxml:content element)))])
+  (if notrim
+      tc
+    (string-trim tc))))
 
 (define (html-content element)
   (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
@@ -438,7 +442,8 @@
                                                               'media
                                                               'title))
                                                    (list (cons 'text
-                                                               (text-content element))))))))))
+                                                               (text-content element
+                                                                             #:notrim #t))))))))))
 
 
 (define (determine-base-url input-doc
