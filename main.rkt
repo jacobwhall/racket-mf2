@@ -196,15 +196,12 @@
 (define (parse-properties element
                           base-url)
   (append
-   (parse-p-* element
-              (find-class "p-.+" element))
+   (parse-p-* element (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element))
    (parse-u-* element
-              (find-class "u-.+" element)
+              (find-class "^u(-[a-z0-9]+)?(-[a-z]+)+$" element)
               base-url)
-   (parse-dt-* element
-               (find-class "dt-.+" element))
-   (parse-e-* element
-              (find-class "e-.+" element))))
+   (parse-dt-* element (find-class "^dt(-[a-z0-9]+)?(-[a-z]+)+$" element))
+   (parse-e-* element (find-class "^e(-[a-z0-9]+)?(-[a-z]+)+$" element))))
 
 
 (define (only-of-type type
