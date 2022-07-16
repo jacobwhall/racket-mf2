@@ -13,7 +13,8 @@
 (define deps '("base"
 	       "sxml"
 	       "gregor"
-	       "html-parsing"))
+	       "html-parsing"
+	       "rackunit-lib"))
 
 (define build-deps '("scribble-lib"
 		     "racket-doc"
