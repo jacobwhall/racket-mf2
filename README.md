@@ -10,7 +10,15 @@ You are welcome to open an issue if you'd like to see support added.
 
 ## Installing
 
-*coming soon...*
+racket-mf2 is available [on the Racket Package Index](https://pkgs.racket-lang.org/package/microformats) under the name `microformats`:
+```
+raco pkg install microformats
+```
+
+## Getting started
+
+I promise to fully document this package once it's ready to share.
+Until then, see the example in the [official documentation](https://docs.racket-lang.org/microformats/index.html).
 
 ## Contributing
 
