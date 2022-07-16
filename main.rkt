@@ -195,6 +195,7 @@
 
 (define (parse-properties element
                           base-url)
+  (println (parse-p-* element (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element)))
   (append
    (parse-p-* element (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element))
    (parse-u-* element
@@ -336,18 +337,23 @@
   (let ([duplicate (check-duplicates properties
                                      #:key property-title)])
     (if duplicate
-        (append (remove-duplicates properties
-                                   #:key property-title)
-                (list (property (property-prefix duplicate)
-                                (property-title duplicate)
-                                (foldr append
-                                       '()
-                                       (map property-value
-                                            (filter (λ (p)
-                                                      (equal? (property-title p)
-                                                              (property-title duplicate)))
-                                                    properties)))
-                                (property-experimental duplicate))))
+        (process-duplicates (append (filter (λ (p) (not (and (equal? (property-prefix p)
+                                                                     (property-prefix duplicate))
+                                                             (equal? (property-title p)
+                                                                     (property-title duplicate)))))
+                                            properties)
+                                    (list (property (property-prefix duplicate)
+                                                    (property-title duplicate)
+                                                    (foldr append
+                                                           '()
+                                                           (map property-value
+                                                                (filter (λ (p)
+                                                                          (and (equal? (property-prefix p)
+                                                                                       (property-prefix duplicate))
+                                                                               (equal? (property-title p)
+                                                                                       (property-title duplicate))))
+                                                                        properties)))
+                                                    (property-experimental duplicate)))))
         properties)))
 
 
