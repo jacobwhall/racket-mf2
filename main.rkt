@@ -406,9 +406,9 @@
 (define (parse-elements element-list
                         base-url)
   (filter microformat?
-          (recursive-parse element-list
+          (flatten (recursive-parse element-list
                            base-url
-                           #f)))
+                           #f))))
 
 
 (define (parse-href element
