@@ -66,7 +66,9 @@
 (define (text-content element
                       #:notrim [notrim #f]) ; TODO:  removing nested <script> & <style> elements
   (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
-                                                   [(sxml:element? n) (text-content n)]
+                                                   [(and (sxml:element? n)
+                                                         (not (member (sxml:element-name n) (list 'style 'script))))
+                                                    (text-content n)]
                                                    [else ""]))
                                       (sxml:content element)))])
     (if notrim
@@ -195,7 +197,6 @@
 
 (define (parse-properties element
                           base-url)
-  (println (parse-p-* element (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element)))
   (append
    (parse-p-* element (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element))
    (parse-u-* element
