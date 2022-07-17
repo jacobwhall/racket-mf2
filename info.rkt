@@ -8,7 +8,7 @@
 
 (define pkg-authors '(jacob))
 
-(define license '(CC0))
+(define license 'CC0)
 
 (define deps '("base"
 	       "sxml"
