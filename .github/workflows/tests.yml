@@ -7,7 +7,7 @@ jobs:
     strategy:
       matrix:
         racket-version: ['8.3', '8.4', '8.5']
-    name: Test in Racket ${{ matrix.racket-version }}
+    name: Run tests in Racket ${{ matrix.racket-version }}
 
     steps:
     - uses: actions/checkout@master
