@@ -75,15 +75,17 @@
 (define property-value/c
   (or/c (listof string?)
         (listof microformat?)
-        (listof datetime?)
+        (listof (or/c string?
+                      datetime?))
         (listof url?)
         (listof (hash/c (or/c 'html
                               'value)
                         string?))
-        (listof (hash/c (or/c 'alt
+        (listof (or/c (hash/c (or/c 'alt
                               'value)
-                        (or/c string?
-                              url?)))))
+                              (or/c string?
+                              url?))
+                      url?))))
 
 (provide
  (contract-out

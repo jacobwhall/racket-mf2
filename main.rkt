@@ -84,23 +84,32 @@
 
 (define (value-class-pattern element
                              #:dt [dt #f]) ; https://microformats.org/wiki/value-class-pattern
-  (let ([val-children ((select-kids (λ (x) (find-class "value" x))) element)])
-    (if (pair? val-children)
-        (let ([n (sxml:element-name (car val-children))]
-              [val-elem (car val-children)]) ; TODO: correctly handle multiple matching children
-          (if dt
-              (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
-                  (and (equal? n 'data) (or (if-attr 'value val-elem)
-                                            (text-content val-elem)))
-                  (and (equal? n 'abbr) (if-attr 'value val-elem))
-                  (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-elem))
-                  (text-content val-elem))
-              (or (and (member n (list 'img 'area)) (if-attr 'alt val-elem))
-                  (and (equal? n 'data) (or (if-attr 'value val-elem)
-                                            (text-content val-elem)))
-                  (and (equal? n 'abbr) (if-attr 'value val-elem))
-                  (text-content val-elem))))
-        #f)))
+  (let ([val-children ((sxpath "//*[@class = 'value']") element)]
+        [val-title-children ((sxpath "//*[@class = 'value-title']") element)])
+    (cond [(and dt
+                (pair? val-children))
+           (car    (map (λ (val-child)
+                          (let ([n (sxml:element-name val-child)])
+                            (or (and (member n (list 'img 'area)) (if-attr 'alt val-child))
+                                (and (equal? n 'data) (or (if-attr 'value val-child)
+                                                          (text-content val-child)))
+                                (and (equal? n 'abbr) (if-attr 'value val-child))
+                                (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-child))
+                                (text-content val-child))))
+                        val-children))]
+          [(pair? val-children)
+           (apply string-append
+                  (map (λ (val-child)
+                         (let ([n (sxml:element-name val-child)])
+                           (or (and (member n (list 'img 'area)) (if-attr 'alt val-child))
+                               (and (equal? n 'data) (or (if-attr 'value val-child)
+                                                         (text-content val-child)))
+                               (and (equal? n 'abbr) (if-attr 'value val-child))
+                               (text-content val-child))))
+                  val-children))]
+          [(pair? val-title-children)
+           (if-attr 'title (car val-title-children))]
+          [else #f])))
 
 
 (define (property->symbol property)
@@ -114,12 +123,12 @@
   (map (λ (class)
          (property 'p
                    (property->symbol class)
-                   (list (let ([n (sxml:element-name element)])
-                           (or (value-class-pattern element)
-                               (and (member n (list 'abbr 'link)) (find-attr 'title element))
-                               (and (member n (list 'data 'input)) (find-attr 'value element))
-                               (and (member n (list 'img 'area)) (find-attr 'alt element))
-                               (text-content element))))
+                   (flatten (list (let ([n (sxml:element-name element)])
+                                    (or (value-class-pattern element)
+                                        (and (member n (list 'abbr 'link)) (find-attr 'title element))
+                                        (and (member n (list 'data 'input)) (find-attr 'value element))
+                                        (and (member n (list 'img 'area)) (find-attr 'alt element))
+                                        (text-content element)))))
                    #f))
        class-list))
 
@@ -157,10 +166,14 @@
                                                   (text-content element))
                                               (and (equal? n 'img) (not (null? (find-attr 'src element))) (if-attr 'alt element))))])
                            (if (cdr value)
-                               (hasheq 'value (parse-url (car value)
+                               (hasheq 'value (parse-url (if (pair? (car value))
+                                                             (caar value)
+                                                             (car value))
                                                          base-url)
                                        'alt (cdr value))
-                               (parse-url (car value)
+                               (parse-url (if (pair? (car value))
+                                              (caar value)
+                                              (car value))
                                           base-url))))
                    #f))
        class-list))
@@ -170,16 +183,16 @@
   (map (λ (class)
          (property 'dt
                    (property->symbol class)
-                   (list (let ([n (sxml:element-name element)])
-                           (or (let ([vcp (value-class-pattern element
-                                                               #:dt #t)])
-                                 (and vcp
-                                      (with-handlers ([exn? (λ (exn) vcp)])
-                                        (iso8601->datetime vcp)))) ; TODO: more permissive datetime parsing (also, allow for +0000 on iso8601 datetimes?)
-                               (and (member n (list 'time 'ins 'del)) (if-attr 'datetime element))
-                               (and (equal? n 'abbr) (if-attr 'title element))
-                               (and (member n (list 'data 'input)) (if-attr 'value element))
-                               (text-content element))))
+                   (flatten (list (let ([n (sxml:element-name element)])
+                                    (or (let ([vcp (value-class-pattern element
+                                                                        #:dt #t)])
+                                          (and vcp
+                                               (with-handlers ([exn? (λ (exn) vcp)])
+                                                 (iso8601->datetime vcp)))) ; TODO: more permissive datetime parsing (also, allow for +0000 on iso8601 datetimes?)
+                                        (and (member n (list 'time 'ins 'del)) (if-attr 'datetime element))
+                                        (and (equal? n 'abbr) (if-attr 'title element))
+                                        (and (member n (list 'data 'input)) (if-attr 'value element))
+                                        (text-content element)))))
                    #f))
        class-list))
 
@@ -334,42 +347,44 @@
                  (microformat-experimental mf))))
 
 
-(define (process-duplicates properties)
-  (let ([duplicate (check-duplicates properties
-                                     #:key property-title)])
-    (if duplicate
-        (process-duplicates (append (filter (λ (p) (not (and (equal? (property-prefix p)
-                                                                     (property-prefix duplicate))
-                                                             (equal? (property-title p)
-                                                                     (property-title duplicate)))))
-                                            properties)
-                                    (list (property (property-prefix duplicate)
-                                                    (property-title duplicate)
-                                                    (foldr append
-                                                           '()
-                                                           (map property-value
-                                                                (filter (λ (p)
-                                                                          (and (equal? (property-prefix p)
-                                                                                       (property-prefix duplicate))
-                                                                               (equal? (property-title p)
-                                                                                       (property-title duplicate))))
-                                                                        properties)))
-                                                    (property-experimental duplicate)))))
-        properties)))
+(define (process-duplicates elements)
+  (let* ([properties (filter property? elements)]
+         [duplicate (check-duplicates properties
+                                      #:key property-title)])
+    (append (if duplicate
+                (process-duplicates (append (filter (λ (p) (not (and (equal? (property-prefix p)
+                                                                             (property-prefix duplicate))
+                                                                     (equal? (property-title p)
+                                                                             (property-title duplicate)))))
+                                                    properties)
+                                            (list (property (property-prefix duplicate)
+                                                            (property-title duplicate)
+                                                            (foldr append
+                                                                   '()
+                                                                   (map property-value
+                                                                        (filter (λ (p)
+                                                                                  (and (equal? (property-prefix p)
+                                                                                               (property-prefix duplicate))
+                                                                                       (equal? (property-title p)
+                                                                                               (property-title duplicate))))
+                                                                                properties)))
+                                                            (property-experimental duplicate)))))
+                properties)
+            (filter (λ (e) (not (property? e))) elements))))
 
 
 (define (recursive-parse elements
                          base-url
                          in-h-*)
   (map (λ (element)
-         (let ([h-types (find-h-types element)]
-               [this-id (if-attr 'id
+         (let* ([h-types (find-h-types element)]
+                [this-id (if-attr 'id
                                  element
-                                 #:noblank #t)])
-           (let ([parsed-children (flatten (recursive-parse (sxml:child-elements element)
+                                 #:noblank #t)]
+                [parsed-children (flatten (recursive-parse (sxml:child-elements element)
                                                             base-url
                                                             (pair? h-types)))]
-                 [properties (parse-properties element
+                [properties (parse-properties element
                                                base-url)])
              (cond [(and (pair? h-types)
                          (pair? properties))
@@ -378,8 +393,8 @@
                               (list (imply-properties element
                                                       (microformat this-id
                                                                    h-types
-                                                                   (filter property?
-                                                                           parsed-children)
+                                                                   (process-duplicates (filter property?
+                                                                                               parsed-children))
                                                                    #f
                                                                    (filter microformat? parsed-children)
                                                                    #f)
@@ -390,16 +405,15 @@
                     (imply-properties element
                                       (microformat this-id
                                                    h-types
-                                                   (filter property?
-                                                           parsed-children)
+                                                   (process-duplicates (filter property?
+                                                                               parsed-children))
                                                    #f
                                                    (filter microformat? parsed-children)
                                                    #f)
                                       base-url
                                       in-h-*)]
-                   [else (append (filter (λ (c) (not (property? c))) parsed-children)
-                                 (process-duplicates (append properties
-                                                             (filter property? parsed-children))))]))))
+                   [else (append properties
+                                 parsed-children)])))
        elements))
 
 
@@ -407,8 +421,8 @@
                         base-url)
   (filter microformat?
           (flatten (recursive-parse element-list
-                           base-url
-                           #f))))
+                                    base-url
+                                    #f))))
 
 
 (define (parse-href element
@@ -464,9 +478,9 @@
 
 (define (string->microformats input
                               base-url)
-  (let ([input-doc ((sxml:modify (list "//template" 'delete))
-                    (html->xexp input))])
-    (let ([rel-pairs (map (λ (e) (element->rels e
+  (let* ([input-doc ((sxml:modify (list "//template" 'delete))
+                    (html->xexp input))]
+         [rel-pairs (map (λ (e) (element->rels e
                                                 (determine-base-url input-doc
                                                                     base-url)))
                           ((sxpath "//a[@rel]|//link[@rel]|//area[@rel]")
@@ -484,4 +498,4 @@
                                           #:combine/key (lambda (k v1 v2)(remove-duplicates (append v1 v2))))
                                    (hasheq)))
                          (cons 'rel-urls
-                               (make-hasheq (reverse (map cdr rel-pairs)))))))))
+                               (make-hasheq (reverse (map cdr rel-pairs))))))))
