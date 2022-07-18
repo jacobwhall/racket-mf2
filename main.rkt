@@ -84,8 +84,8 @@
 
 (define (value-class-pattern element
                              #:dt [dt #f]) ; https://microformats.org/wiki/value-class-pattern
-  (let ([val-children ((sxpath "//*[@class = 'value']") element)]
-        [val-title-children ((sxpath "//*[@class = 'value-title']") element)])
+  (let ([val-children ((sxpath "//*[contains(concat(' ', normalize-space(@class), ' '), ' value ')]") element)]
+        [val-title-children ((sxpath "//*[contains(concat(' ', normalize-space(@class), ' '), ' value-title ')]") element)])
     (cond [(and dt
                 (pair? val-children))
            (car    (map (λ (val-child)
