@@ -68,7 +68,8 @@
   (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
                                                    [(and (sxml:element? n)
                                                          (not (member (sxml:element-name n) (list 'style 'script))))
-                                                    (text-content n)]
+                                                    (text-content n
+                                                                  #:notrim #t)]
                                                    [else ""]))
                                       (sxml:content element)))])
     (if notrim
