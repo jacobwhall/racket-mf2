@@ -11,6 +11,19 @@
 (provide (contract-out [string->microformats (string? url? . -> . jsexpr?)]))
 
 
+(define (is-valid-url? href-string)
+  (if (regexp-match url-regexp
+                    href-string)
+      (url-host (string->url href-string))
+      #f))
+
+
+(define (parse-url url-string
+                   base-url)
+  (combine-url/relative base-url
+                        url-string))
+
+
 (define (find-attr attr-name
                    element
                    #:noblank [noblank #f])
@@ -64,11 +77,22 @@
         #f)))
 
 (define (text-content element
-                      #:notrim [notrim #f]) ; TODO:  removing nested <script> & <style> elements
+                      base-url
+                      #:notrim [notrim #f]
+                      #:expand-imgs [expand-imgs #f]) ; TODO:  removing nested <script> & <style> elements
   (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
+                                                   [(and (sxml:element? n)
+                                                         (equal? (sxml:element-name n) 'img)
+                                                         (or (if-attr 'alt n)
+                                                             (if-attr 'src n)))
+                                                    (string-trim (if (if-attr 'alt n)
+                                                                     (if-attr 'alt n)
+                                                                     (url->string (parse-url (if-attr 'src n)
+                                                                                             base-url))))]
                                                    [(and (sxml:element? n)
                                                          (not (member (sxml:element-name n) (list 'style 'script))))
                                                     (text-content n
+                                                                  base-url
                                                                   #:notrim #t)]
                                                    [else ""]))
                                       (sxml:content element)))])
@@ -84,6 +108,7 @@
            
 
 (define (value-class-pattern element
+                             base-url
                              #:dt [dt #f]) ; https://microformats.org/wiki/value-class-pattern
   (let ([val-children ((sxpath "//*[contains(concat(' ', normalize-space(@class), ' '), ' value ')]") element)]
         [val-title-children ((sxpath "//*[contains(concat(' ', normalize-space(@class), ' '), ' value-title ')]") element)])
@@ -93,10 +118,12 @@
                           (let ([n (sxml:element-name val-child)])
                             (or (and (member n (list 'img 'area)) (if-attr 'alt val-child))
                                 (and (equal? n 'data) (or (if-attr 'value val-child)
-                                                          (text-content val-child)))
+                                                          (text-content val-child
+                                                                        base-url)))
                                 (and (equal? n 'abbr) (if-attr 'value val-child))
                                 (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-child))
-                                (text-content val-child))))
+                                (text-content val-child
+                                              base-url))))
                         val-children))]
           [(pair? val-children)
            (apply string-append
@@ -104,10 +131,12 @@
                          (let ([n (sxml:element-name val-child)])
                            (or (and (member n (list 'img 'area)) (if-attr 'alt val-child))
                                (and (equal? n 'data) (or (if-attr 'value val-child)
-                                                         (text-content val-child)))
+                                                         (text-content val-child
+                                                                       base-url)))
                                (and (equal? n 'abbr) (if-attr 'value val-child))
-                               (text-content val-child))))
-                  val-children))]
+                               (text-content val-child
+                                             base-url))))
+                       val-children))]
           [(pair? val-title-children)
            (if-attr 'title (car val-title-children))]
           [else #f])))
@@ -120,31 +149,22 @@
                    "-")))
 
 
-(define (parse-p-* element class-list)
+(define (parse-p-* element
+                   class-list
+                   base-url)
   (map (λ (class)
          (property 'p
                    (property->symbol class)
                    (flatten (list (let ([n (sxml:element-name element)])
-                                    (or (value-class-pattern element)
+                                    (or (value-class-pattern element
+                                                             base-url)
                                         (and (member n (list 'abbr 'link)) (find-attr 'title element))
                                         (and (member n (list 'data 'input)) (find-attr 'value element))
                                         (and (member n (list 'img 'area)) (find-attr 'alt element))
-                                        (text-content element)))))
+                                        (text-content element
+                                                      base-url)))))
                    #f))
        class-list))
-
-
-(define (is-valid-url? href-string)
-  (if (regexp-match url-regexp
-                    href-string)
-      (url-host (string->url href-string))
-      #f))
-
-
-(define (parse-url url-string
-                   base-url)
-  (combine-url/relative base-url
-                        url-string))
 
 
 (define (parse-u-* element
@@ -161,10 +181,12 @@
                                                   (and (equal? n 'video) (if-attr 'poster element))
                                                   (and (equal? n 'object) (if-attr 'data element))
                                                   (and (member n (list 'audio 'video 'source 'iframe)) (if-attr 'src element))
-                                                  (value-class-pattern element)
+                                                  (value-class-pattern element
+                                                                       base-url)
                                                   (and (equal? n 'abbr) (if-attr 'title element))
                                                   (and (member n (list 'data 'input)) (if-attr 'value element))
-                                                  (text-content element))
+                                                  (text-content element
+                                                                base-url))
                                               (and (equal? n 'img) (not (null? (find-attr 'src element))) (if-attr 'alt element))))])
                            (if (cdr value)
                                (hasheq 'value (parse-url (if (pair? (car value))
@@ -180,12 +202,15 @@
        class-list))
 
 
-(define (parse-dt-* element class-list)
+(define (parse-dt-* element
+                    class-list
+                    base-url)
   (map (λ (class)
          (property 'dt
                    (property->symbol class)
                    (flatten (list (let ([n (sxml:element-name element)])
                                     (or (let ([vcp (value-class-pattern element
+                                                                        base-url
                                                                         #:dt #t)])
                                           (and vcp
                                                (with-handlers ([exn? (λ (exn) vcp)])
@@ -193,17 +218,22 @@
                                         (and (member n (list 'time 'ins 'del)) (if-attr 'datetime element))
                                         (and (equal? n 'abbr) (if-attr 'title element))
                                         (and (member n (list 'data 'input)) (if-attr 'value element))
-                                        (text-content element)))))
+                                        (text-content element
+                                                      base-url)))))
                    #f))
        class-list))
 
 
-(define (parse-e-* element class-list)
+(define (parse-e-* element
+                   class-list
+                   base-url)
   (map (λ (class)
          (property 'e
                    (property->symbol class)
                    (list (make-hasheq (list (cons 'value
-                                                  (text-content element))
+                                                  (text-content element
+                                                                base-url
+                                                                #:expand-imgs #t))
                                             (cons 'html
                                                   (html-content element)))))
                    #f)) 
@@ -212,12 +242,18 @@
 (define (parse-properties element
                           base-url)
   (append
-   (parse-p-* element (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element))
+   (parse-p-* element
+              (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element)
+              base-url)
    (parse-u-* element
               (find-class "^u(-[a-z0-9]+)?(-[a-z]+)+$" element)
               base-url)
-   (parse-dt-* element (find-class "^dt(-[a-z0-9]+)?(-[a-z]+)+$" element))
-   (parse-e-* element (find-class "^e(-[a-z0-9]+)?(-[a-z]+)+$" element))))
+   (parse-dt-* element
+               (find-class "^dt(-[a-z0-9]+)?(-[a-z]+)+$" element)
+               base-url)
+   (parse-e-* element
+              (find-class "^e(-[a-z0-9]+)?(-[a-z]+)+$" element)
+              base-url)))
 
 
 (define (only-of-type type
@@ -261,7 +297,8 @@
                                                          (and (equal? (sxml:element-name (find-only-child only-child)) 'img) (if-attr 'alt (find-only-child only-child) #:noblank #t))
                                                          (and (equal? (sxml:element-name (find-only-child only-child)) 'area) (if-attr 'alt (find-only-child only-child) #:noblank #t))
                                                          (and (equal? (sxml:element-name (find-only-child only-child)) 'abbr) (if-attr 'title (find-only-child only-child) #:noblank #t))
-                                                         (text-content element))))
+                                                         (text-content element
+                                                                       base-url))))
                                              #f))
                              null)
                          (if (and (not (findf (λ (p)
@@ -380,41 +417,41 @@
   (map (λ (element)
          (let* ([h-types (find-h-types element)]
                 [this-id (if-attr 'id
-                                 element
-                                 #:noblank #t)]
+                                  element
+                                  #:noblank #t)]
                 [parsed-children (flatten (recursive-parse (sxml:child-elements element)
-                                                            base-url
-                                                            (pair? h-types)))]
+                                                           base-url
+                                                           (pair? h-types)))]
                 [properties (parse-properties element
-                                               base-url)])
-             (cond [(and (pair? h-types)
-                         (pair? properties))
-                    (property 'h
-                              (property-title (car properties))
-                              (list (imply-properties element
-                                                      (microformat this-id
-                                                                   h-types
-                                                                   (process-duplicates (filter property?
-                                                                                               parsed-children))
-                                                                   #f
-                                                                   (filter microformat? parsed-children)
-                                                                   #f)
-                                                      base-url
-                                                      in-h-*))
-                              #f)]
-                   [(pair? h-types)
-                    (imply-properties element
-                                      (microformat this-id
-                                                   h-types
-                                                   (process-duplicates (filter property?
-                                                                               parsed-children))
-                                                   #f
-                                                   (filter microformat? parsed-children)
-                                                   #f)
-                                      base-url
-                                      in-h-*)]
-                   [else (append properties
-                                 parsed-children)])))
+                                              base-url)])
+           (cond [(and (pair? h-types)
+                       (pair? properties))
+                  (property 'h
+                            (property-title (car properties))
+                            (list (imply-properties element
+                                                    (microformat this-id
+                                                                 h-types
+                                                                 (process-duplicates (filter property?
+                                                                                             parsed-children))
+                                                                 #f
+                                                                 (filter microformat? parsed-children)
+                                                                 #f)
+                                                    base-url
+                                                    in-h-*))
+                            #f)]
+                 [(pair? h-types)
+                  (imply-properties element
+                                    (microformat this-id
+                                                 h-types
+                                                 (process-duplicates (filter property?
+                                                                             parsed-children))
+                                                 #f
+                                                 (filter microformat? parsed-children)
+                                                 #f)
+                                    base-url
+                                    in-h-*)]
+                 [else (append properties
+                               parsed-children)])))
        elements))
 
 
@@ -462,6 +499,7 @@
                                                               'title))
                                                    (list (cons 'text
                                                                (text-content element
+                                                                             base-url
                                                                              #:notrim #t))))))))))
 
 
@@ -480,23 +518,23 @@
 (define (string->microformats input
                               base-url)
   (let* ([input-doc ((sxml:modify (list "//template" 'delete))
-                    (html->xexp input))]
+                     (html->xexp input))]
          [rel-pairs (map (λ (e) (element->rels e
-                                                (determine-base-url input-doc
-                                                                    base-url)))
-                          ((sxpath "//a[@rel]|//link[@rel]|//area[@rel]")
-                           input-doc))])
-      (make-hasheq (list (cons 'items
-                               (map microformat->jsexpr
-                                    (parse-elements (sxml:child-elements input-doc)
-                                                    (determine-base-url input-doc
-                                                                        base-url))))
-                         (cons 'rels
-                               (if (pair? rel-pairs)
-                                   (apply hash-union
-                                          (map car
-                                               rel-pairs)
-                                          #:combine/key (lambda (k v1 v2)(remove-duplicates (append v1 v2))))
-                                   (hasheq)))
-                         (cons 'rel-urls
-                               (make-hasheq (reverse (map cdr rel-pairs))))))))
+                                               (determine-base-url input-doc
+                                                                   base-url)))
+                         ((sxpath "//a[@rel]|//link[@rel]|//area[@rel]")
+                          input-doc))])
+    (make-hasheq (list (cons 'items
+                             (map microformat->jsexpr
+                                  (parse-elements (sxml:child-elements input-doc)
+                                                  (determine-base-url input-doc
+                                                                      base-url))))
+                       (cons 'rels
+                             (if (pair? rel-pairs)
+                                 (apply hash-union
+                                        (map car
+                                             rel-pairs)
+                                        #:combine/key (lambda (k v1 v2)(remove-duplicates (append v1 v2))))
+                                 (hasheq)))
+                       (cons 'rel-urls
+                             (make-hasheq (reverse (map cdr rel-pairs))))))))
