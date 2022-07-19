@@ -1,6 +1,7 @@
 #lang racket
 
-(require sxml
+(require xml
+         sxml
          html-parsing
          json
          gregor
@@ -129,7 +130,7 @@
                       base-url)
   (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
                                                        (string-trim (srl:sxml->html-noindent n))]
-                                                      [(string? n) n]))
+                                                      [(string? n) (xml-attribute-encode n)]))
                                          (sxml:content (recursive-url-parse element
                                                                             base-url))))))
 
