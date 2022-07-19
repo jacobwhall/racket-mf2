@@ -87,12 +87,12 @@
                                                          (equal? (sxml:element-name n) 'img)
                                                          (or (if-attr 'alt n)
                                                              (if-attr 'src n)))
-                                                    (string-append " "
-                                                                   (string-trim (if (if-attr 'alt n)
-                                                                                    (if-attr 'alt n)
-                                                                                    (url->string (parse-url (if-attr 'src n)
-                                                                                                            base-url))))
-                                                                   " ")]
+                                                    (string-join (string-split (string-trim (if (if-attr 'alt n)
+                                                                                   (if-attr 'alt n)
+                                                                                   (url->string (parse-url (if-attr 'src n)
+                                                                                                           base-url)))))
+                                                                 #:before-first (if expand-imgs " " "")
+                                                                 #:after-last (if expand-imgs " " ""))]
                                                    [(and (sxml:element? n)
                                                          (not (member (sxml:element-name n) (list 'style 'script))))
                                                     (text-content n
