@@ -85,10 +85,12 @@
                                                          (equal? (sxml:element-name n) 'img)
                                                          (or (if-attr 'alt n)
                                                              (if-attr 'src n)))
-                                                    (string-trim (if (if-attr 'alt n)
-                                                                     (if-attr 'alt n)
-                                                                     (url->string (parse-url (if-attr 'src n)
-                                                                                             base-url))))]
+                                                    (string-append " "
+                                                                   (string-trim (if (if-attr 'alt n)
+                                                                                    (if-attr 'alt n)
+                                                                                    (url->string (parse-url (if-attr 'src n)
+                                                                                                            base-url))))
+                                                                   " ")]
                                                    [(and (sxml:element? n)
                                                          (not (member (sxml:element-name n) (list 'style 'script))))
                                                     (text-content n
@@ -100,12 +102,37 @@
         tc
         (string-trim tc))))
 
-(define (html-content element)
+
+(define (recursive-url-parse element
+                             base-url)
+  (if (sxml:element? element)
+      (sxml:change-content
+       (cond [(sxml:attr element 'href)
+              (sxml:set-attr element
+                             (list 'href
+                                   (url->string (parse-url (car (string-split (sxml:attr element 'href)))
+                                                           base-url))))]
+             [(and (equal? (sxml:element-name element) 'img)
+                   (sxml:attr element 'src))
+              (sxml:set-attr element
+                             (list 'src
+                                   (url->string (parse-url (car (string-split (sxml:attr element 'src)))
+                                                           base-url))))]
+             [else element])
+       (map (λ (e) (recursive-url-parse e
+                                        base-url))
+            (sxml:content element)))
+      element))
+
+
+(define (html-content element
+                      base-url)
   (string-trim (apply string-append (map (λ (n) (cond [(sxml:element? n)
                                                        (string-trim (srl:sxml->html-noindent n))]
                                                       [(string? n) n]))
-                                         (sxml:content element)))))
-           
+                                         (sxml:content (recursive-url-parse element
+                                                                            base-url))))))
+
 
 (define (value-class-pattern element
                              base-url
@@ -162,7 +189,8 @@
                                         (and (member n (list 'data 'input)) (find-attr 'value element))
                                         (and (member n (list 'img 'area)) (find-attr 'alt element))
                                         (text-content element
-                                                      base-url)))))
+                                                      base-url
+                                                      #:expand-imgs #t)))))
                    #f))
        class-list))
 
@@ -235,7 +263,8 @@
                                                                 base-url
                                                                 #:expand-imgs #t))
                                             (cons 'html
-                                                  (html-content element)))))
+                                                  (html-content element
+                                                                base-url)))))
                    #f)) 
        class-list))
 
