@@ -5,6 +5,7 @@
          html-parsing
          json
          gregor
+         gregor/time
          net/url
          racket/hash
          "structures.rkt")
@@ -80,7 +81,7 @@
 (define (text-content element
                       base-url
                       #:notrim [notrim #f]
-                      #:expand-imgs [expand-imgs #f]) ; TODO:  removing nested <script> & <style> elements
+                      #:expand-imgs [expand-imgs #f])
   (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
                                                    [(and (sxml:element? n)
                                                          (equal? (sxml:element-name n) 'img)
@@ -135,6 +136,93 @@
                                                                             base-url))))))
 
 
+(define (parse-date-time-child elements)
+  (map (λ (element)
+         (let ([n (sxml:element-name element)])
+           (or (and (member n (list 'img 'area)) (if-attr 'alt element))
+               (and (equal? n 'data) (or (if-attr 'value element)
+                                         (text-content element
+                                                       (string->url ""))))
+               (and (equal? n 'abbr) (if-attr 'value element))
+               (and (member n (list 'del 'ins 'time)) (if-attr 'datetime element))
+               (text-content element
+                             (string->url "")))))
+       elements))
+
+
+(define (remove-periods input)
+  (list->string (filter (λ (c) (not (equal? #\. c)))
+                        (string->list input))))
+
+
+(define (parse-for-time-with-seconds input)
+  (ormap (λ (p) (with-handlers ([exn? (λ (exn) #f)])
+                  (parse-time (remove-periods input) p)))
+         (list "H:m:sX"
+               "H:m:sa"
+               "H:m:s")))
+
+
+(define (parse-for-time-no-seconds input)
+  (ormap (λ (p) (with-handlers ([exn? (λ (exn) #f)])
+                  (parse-time (remove-periods input) p)))
+         (list "H:mX"
+               "H:ma"
+               "H:m"
+               "Ha")))
+
+
+(define (parse-for-date input)
+  (ormap (λ (p) (with-handlers ([exn? (λ (exn) #f)])
+                  (parse-date input p)))
+         (list "y-M-dd"
+               "y-DDD")))
+
+
+(define (parse-iso8601 input)
+  (if (regexp-match #rx".+T.+" input)
+      (with-handlers ([exn? (λ (exn) #f)])
+        (iso8601->datetime input))
+      #f))
+
+
+(define (parse-date-time values)
+  (cond [(ormap parse-iso8601
+                values)]
+        [(let ([this-date (ormap parse-for-date
+                                 values)]
+               [this-time-with-seconds (ormap parse-for-time-with-seconds
+                                              values)]
+               [this-time-no-seconds (ormap parse-for-time-no-seconds
+                                            values)])
+           ; TODO: [tz (findf parse-for-timezone elements)])
+           (cond [(and (date? this-date)
+                       (time? this-time-with-seconds))
+                  (~t (datetime (->year this-date)
+                                (->month this-date)
+                                (->day this-date)
+                                (->hours this-time-with-seconds)
+                                (->minutes this-time-with-seconds)
+                                (->seconds this-time-with-seconds)
+                                (->nanoseconds this-time-with-seconds))
+                      "yyyy-MM-dd HH:mm:ss")]
+                 [(and (date? this-date)
+                       (time? this-time-no-seconds))
+                  (~t (datetime (->year this-date)
+                                (->month this-date)
+                                (->day this-date)
+                                (->hours this-time-no-seconds)
+                                (->minutes this-time-no-seconds)
+                                (->seconds this-time-no-seconds)
+                                (->nanoseconds this-time-no-seconds))
+                      "yyyy-MM-dd HH:mm")]
+                 [(date? this-date)
+                  (~t this-date
+                      "yyyy-MM-dd")]
+                 [else #f]))]
+        [else #f]))
+
+
 (define (value-class-pattern element
                              base-url
                              #:dt [dt #f]) ; https://microformats.org/wiki/value-class-pattern
@@ -142,17 +230,11 @@
         [val-title-children ((sxpath "//*[contains(concat(' ', normalize-space(@class), ' '), ' value-title ')]") element)])
     (cond [(and dt
                 (pair? val-children))
-           (car    (map (λ (val-child)
-                          (let ([n (sxml:element-name val-child)])
-                            (or (and (member n (list 'img 'area)) (if-attr 'alt val-child))
-                                (and (equal? n 'data) (or (if-attr 'value val-child)
-                                                          (text-content val-child
-                                                                        base-url)))
-                                (and (equal? n 'abbr) (if-attr 'value val-child))
-                                (and (member n (list 'del 'ins 'time)) (if-attr 'datetime val-child))
-                                (text-content val-child
-                                              base-url))))
-                        val-children))]
+           (parse-date-time (parse-date-time-child val-children))]
+          [(and dt
+                (pair? val-title-children))
+           (parse-date-time (map (λ (e) (find-attr 'title e))
+                                 val-title-children))]
           [(pair? val-children)
            (apply string-append
                   (map (λ (val-child)
@@ -238,12 +320,9 @@
          (property 'dt
                    (property->symbol class)
                    (flatten (list (let ([n (sxml:element-name element)])
-                                    (or (let ([vcp (value-class-pattern element
-                                                                        base-url
-                                                                        #:dt #t)])
-                                          (and vcp
-                                               (with-handlers ([exn? (λ (exn) vcp)])
-                                                 (iso8601->datetime vcp)))) ; TODO: more permissive datetime parsing (also, allow for +0000 on iso8601 datetimes?)
+                                    (or (value-class-pattern element
+                                                             base-url
+                                                             #:dt #t)
                                         (and (member n (list 'time 'ins 'del)) (if-attr 'datetime element))
                                         (and (equal? n 'abbr) (if-attr 'title element))
                                         (and (member n (list 'data 'input)) (if-attr 'value element))
