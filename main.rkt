@@ -187,40 +187,46 @@
 
 
 (define (parse-date-time values)
-  (cond [(ormap parse-iso8601
-                values)]
-        [(let ([this-date (ormap parse-for-date
-                                 values)]
-               [this-time-with-seconds (ormap parse-for-time-with-seconds
-                                              values)]
-               [this-time-no-seconds (ormap parse-for-time-no-seconds
-                                            values)])
-           ; TODO: [tz (findf parse-for-timezone elements)])
-           (cond [(and (date? this-date)
-                       (time? this-time-with-seconds))
-                  (~t (datetime (->year this-date)
-                                (->month this-date)
-                                (->day this-date)
-                                (->hours this-time-with-seconds)
-                                (->minutes this-time-with-seconds)
-                                (->seconds this-time-with-seconds)
-                                (->nanoseconds this-time-with-seconds))
-                      "yyyy-MM-dd HH:mm:ss")]
-                 [(and (date? this-date)
-                       (time? this-time-no-seconds))
-                  (~t (datetime (->year this-date)
-                                (->month this-date)
-                                (->day this-date)
-                                (->hours this-time-no-seconds)
-                                (->minutes this-time-no-seconds)
-                                (->seconds this-time-no-seconds)
-                                (->nanoseconds this-time-no-seconds))
-                      "yyyy-MM-dd HH:mm")]
-                 [(date? this-date)
-                  (~t this-date
-                      "yyyy-MM-dd")]
-                 [else #f]))]
-        [else #f]))
+  (let ([this-iso8601 (ormap parse-iso8601
+                             values)]
+        [this-date (ormap parse-for-date
+                          values)]
+        [this-time-with-seconds (ormap parse-for-time-with-seconds
+                                       values)]
+        [this-time-no-seconds (ormap parse-for-time-no-seconds
+                                     values)])
+    ; TODO: [tz (findf parse-for-timezone elements)])
+    (cond
+      [this-iso8601
+       (cons this-iso8601
+             (datetime->iso8601 this-iso8601))]
+      [(and (date? this-date)
+            (time? this-time-with-seconds))
+       (cons this-date
+             (~t (datetime (->year this-date)
+                           (->month this-date)
+                           (->day this-date)
+                           (->hours this-time-with-seconds)
+                           (->minutes this-time-with-seconds)
+                           (->seconds this-time-with-seconds)
+                           (->nanoseconds this-time-with-seconds))
+                 "yyyy-MM-dd HH:mm:ss"))]
+      [(and (date? this-date)
+            (time? this-time-no-seconds))
+       (cons this-date
+             (~t (datetime (->year this-date)
+                           (->month this-date)
+                           (->day this-date)
+                           (->hours this-time-no-seconds)
+                           (->minutes this-time-no-seconds)
+                           (->seconds this-time-no-seconds)
+                           (->nanoseconds this-time-no-seconds))
+                 "yyyy-MM-dd HH:mm"))]
+      [(date? this-date)
+       (cons this-date
+             (~t this-date
+                 "yyyy-MM-dd"))]
+      [else #f])))
 
 
 (define (value-class-pattern element
@@ -353,11 +359,11 @@
   (apply append
          (map (λ (pf)
                 ((car pf) element
-                    (find-class (string-append "^"
-                                               (cdr pf)
-                                               "(-[a-z0-9]+)?(-[a-z]+)+$")
-                                element)
-                    base-url))
+                          (find-class (string-append "^"
+                                                     (cdr pf)
+                                                     "(-[a-z0-9]+)?(-[a-z]+)+$")
+                                      element)
+                          base-url))
               (list (cons parse-p-* "p")
                     (cons parse-u-* "u")
                     (cons parse-dt-* "dt")
@@ -376,6 +382,11 @@
       #f))
 
 
+(define (imply-date-properties properties)
+  ; (println (filter (λ (p) (equal? (property-prefix p) 'dt)) properties))
+  properties)
+
+
 (define (imply-properties element
                           mf
                           base-url
@@ -389,76 +400,76 @@
                                  base-url)])
     (microformat (microformat-id mf)
                  (microformat-types mf)
-                 (append (if (and (not (findf (λ (p)
-                                                (or (equal? (property-title p) 'name)
-                                                    (member (property-prefix p) (list 'p 'e))))
-                                              (microformat-properties mf)))
-                                  no-nested)
-                             (list (property 'h
-                                             'name
-                                             (list (let ([n (sxml:element-name element)])
-                                                     (or (and (member n (list 'img 'area)) (if-attr 'alt element))
-                                                         (and (equal? n 'abbr) (if-attr 'title element))
-                                                         (and (equal? (sxml:element-name only-child) 'img) (if-attr 'alt only-child #:noblank #t))
-                                                         (and (equal? (sxml:element-name only-child) 'area) (if-attr 'alt only-child #:noblank #t))
-                                                         (and (equal? (sxml:element-name only-child) 'abbr) (if-attr 'title only-child #:noblank #t))
-                                                         (and (equal? (sxml:element-name (find-only-child only-child)) 'img) (if-attr 'alt (find-only-child only-child) #:noblank #t))
-                                                         (and (equal? (sxml:element-name (find-only-child only-child)) 'area) (if-attr 'alt (find-only-child only-child) #:noblank #t))
-                                                         (and (equal? (sxml:element-name (find-only-child only-child)) 'abbr) (if-attr 'title (find-only-child only-child) #:noblank #t))
-                                                         (text-content element
-                                                                       base-url))))
-                                             #f))
-                             null)
-                         (if (and (not (findf (λ (p)
-                                                (or (equal? (property-title p) 'photo)
-                                                    (equal? (property-prefix p) 'u)))
-                                              (microformat-properties mf)))
-                                  no-nested)
-                             (let ([implied-photo
-                                    (let ([n (sxml:element-name element)])
-                                      (or (and (equal? n 'img) (cons (if-attr 'src element)
-                                                                     (if-attr 'alt element)))
-                                          (and (equal? n 'object) (cons (if-attr 'data element) #f))
-                                          (and (only-of-type 'img element) (cons (if-attr 'src (only-of-type 'img element))
-                                                                                 (if-attr 'alt (only-of-type 'img element))))
-                                          (and (only-of-type 'object element) (cons (if-attr 'data (only-of-type 'object element)) #f))
-                                          (and (only-of-type 'img only-child) (cons (if-attr 'src (only-of-type 'img only-child))
-                                                                                    (if-attr 'alt (only-of-type 'img only-child))))
-                                          (and (only-of-type 'object only-child) (cons (if-attr 'data (only-of-type 'object only-child)) #f))
-                                          ))])
-                               (if implied-photo
-                                   (list (property 'u
-                                                   'photo
-                                                   (list (if (cdr implied-photo)
-                                                             (hasheq 'value (parse-url (car implied-photo)
-                                                                                       base-url)
-                                                                     'alt (cdr implied-photo))
-                                                             (parse-url (car implied-photo)
-                                                                        base-url)))
-                                                   #f))
-                                   null))
-                             null)
-                         (if (and (not (findf (λ (p)
-                                                (or (equal? (property-title p) 'url)
-                                                    (equal? (property-prefix p) 'u)))
-                                              (microformat-properties mf)))
-                                  no-nested)
-                             (let ([implied-url (let ([n (sxml:element-name element)])
-                                                  (or (and (member n (list 'a 'area)) (if-attr 'href element))
-                                                      (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element)))
-                                                      (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element)))
-                                                      (and (only-of-type 'a only-child) (if-attr 'href (only-of-type 'a only-child)))
-                                                      (and (only-of-type 'area only-child) (if-attr 'href (only-of-type 'area only-child)))
-                                                      ))])
-                               (if implied-url
-                                   (list (property 'u
-                                                   'url
-                                                   (list (parse-url implied-url
-                                                                    base-url))
-                                                   #f))
-                                   null))
-                             null)
-                         (microformat-properties mf))
+                 (imply-date-properties (append (if (and (not (findf (λ (p)
+                                                                       (or (equal? (property-title p) 'name)
+                                                                           (member (property-prefix p) (list 'p 'e))))
+                                                                     (microformat-properties mf)))
+                                                         no-nested)
+                                                    (list (property 'h
+                                                                    'name
+                                                                    (list (let ([n (sxml:element-name element)])
+                                                                            (or (and (member n (list 'img 'area)) (if-attr 'alt element))
+                                                                                (and (equal? n 'abbr) (if-attr 'title element))
+                                                                                (and (equal? (sxml:element-name only-child) 'img) (if-attr 'alt only-child #:noblank #t))
+                                                                                (and (equal? (sxml:element-name only-child) 'area) (if-attr 'alt only-child #:noblank #t))
+                                                                                (and (equal? (sxml:element-name only-child) 'abbr) (if-attr 'title only-child #:noblank #t))
+                                                                                (and (equal? (sxml:element-name (find-only-child only-child)) 'img) (if-attr 'alt (find-only-child only-child) #:noblank #t))
+                                                                                (and (equal? (sxml:element-name (find-only-child only-child)) 'area) (if-attr 'alt (find-only-child only-child) #:noblank #t))
+                                                                                (and (equal? (sxml:element-name (find-only-child only-child)) 'abbr) (if-attr 'title (find-only-child only-child) #:noblank #t))
+                                                                                (text-content element
+                                                                                              base-url))))
+                                                                    #f))
+                                                    null)
+                                                (if (and (not (findf (λ (p)
+                                                                       (or (equal? (property-title p) 'photo)
+                                                                           (equal? (property-prefix p) 'u)))
+                                                                     (microformat-properties mf)))
+                                                         no-nested)
+                                                    (let ([implied-photo
+                                                           (let ([n (sxml:element-name element)])
+                                                             (or (and (equal? n 'img) (cons (if-attr 'src element)
+                                                                                            (if-attr 'alt element)))
+                                                                 (and (equal? n 'object) (cons (if-attr 'data element) #f))
+                                                                 (and (only-of-type 'img element) (cons (if-attr 'src (only-of-type 'img element))
+                                                                                                        (if-attr 'alt (only-of-type 'img element))))
+                                                                 (and (only-of-type 'object element) (cons (if-attr 'data (only-of-type 'object element)) #f))
+                                                                 (and (only-of-type 'img only-child) (cons (if-attr 'src (only-of-type 'img only-child))
+                                                                                                           (if-attr 'alt (only-of-type 'img only-child))))
+                                                                 (and (only-of-type 'object only-child) (cons (if-attr 'data (only-of-type 'object only-child)) #f))
+                                                                 ))])
+                                                      (if implied-photo
+                                                          (list (property 'u
+                                                                          'photo
+                                                                          (list (if (cdr implied-photo)
+                                                                                    (hasheq 'value (parse-url (car implied-photo)
+                                                                                                              base-url)
+                                                                                            'alt (cdr implied-photo))
+                                                                                    (parse-url (car implied-photo)
+                                                                                               base-url)))
+                                                                          #f))
+                                                          null))
+                                                    null)
+                                                (if (and (not (findf (λ (p)
+                                                                       (or (equal? (property-title p) 'url)
+                                                                           (equal? (property-prefix p) 'u)))
+                                                                     (microformat-properties mf)))
+                                                         no-nested)
+                                                    (let ([implied-url (let ([n (sxml:element-name element)])
+                                                                         (or (and (member n (list 'a 'area)) (if-attr 'href element))
+                                                                             (and (only-of-type 'a element) (if-attr 'href (only-of-type 'a element)))
+                                                                             (and (only-of-type 'area element) (if-attr 'href (only-of-type 'area element)))
+                                                                             (and (only-of-type 'a only-child) (if-attr 'href (only-of-type 'a only-child)))
+                                                                             (and (only-of-type 'area only-child) (if-attr 'href (only-of-type 'area only-child)))
+                                                                             ))])
+                                                      (if implied-url
+                                                          (list (property 'u
+                                                                          'url
+                                                                          (list (parse-url implied-url
+                                                                                           base-url))
+                                                                          #f))
+                                                          null))
+                                                    null)
+                                                (microformat-properties mf)))
                  (let ([p-names (if (findf (λ (p) (equal? (property-prefix p) 'p))
                                            props)
                                     (filter (λ (p) (and (equal? (property-prefix p) 'p)

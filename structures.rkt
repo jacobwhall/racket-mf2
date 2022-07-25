@@ -58,11 +58,8 @@
                                            (url->string v)))
                                      (property-value x))]
                                [(equal? (property-prefix x) 'dt)
-                                (map (λ (v)
-                                       (if (datetime? v)
-                                           (datetime->iso8601 v)
-                                           v))
-                                     (property-value x))]
+                                (filter string?
+                                             (property-value x))]
                                [(equal? (property-prefix x) 'e)
                                 (property-value x)]
                                [else 
@@ -76,15 +73,16 @@
   (or/c (listof string?)
         (listof microformat?)
         (listof (or/c string?
+                      date?
                       datetime?))
         (listof url?)
         (listof (hash/c (or/c 'html
                               'value)
                         string?))
         (listof (or/c (hash/c (or/c 'alt
-                              'value)
+                                    'value)
                               (or/c string?
-                              url?))
+                                    url?))
                       url?))))
 
 (provide
