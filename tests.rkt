@@ -27,10 +27,10 @@
 
 (define (check-and-recurse files)
   (compare-output (first files)
-                   (second files))
+                  (second files))
   (if (> (length files) 2)
       (recursive-test (cdr files))
-      "There are no more files to compare."))
+      (displayln "There are no more files to compare.")))
 
 
 (define (recursive-test files)
@@ -39,10 +39,14 @@
                   (remove-extension (file-name-from-path (second files))))
           (check-and-recurse files)
           (recursive-test (cdr files)))
-   "There is only one file left, but nothing to compare it to!"))
+      (displayln "There is only one file left, but nothing to compare it to!"))) ; TODO: raise exception if this happens?
 
-(recursive-test (flatten (map (λ (d) (directory-list d
-                                                     #:build? #t))
-                              (directory-list (build-path (current-directory)
-                                                          "tests/tests/microformats-v2")
-                                              #:build? #t))))
+(define (run-recursive-tests)
+  (recursive-test (flatten (map (λ (d)
+                                  (directory-list d
+                                                  #:build? #t))
+                                (directory-list (build-path (current-directory)
+                                                            "tests/tests/microformats-v2")
+                                                #:build? #t)))))
+
+(run-recursive-tests)
