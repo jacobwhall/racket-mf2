@@ -82,27 +82,27 @@
                       base-url
                       #:notrim [notrim #f]
                       #:expand-imgs [expand-imgs #f])
-  (let ([tc (apply string-append (map (λ (n) (cond [(string? n) n]
-                                                   [(and (sxml:element? n)
-                                                         (equal? (sxml:element-name n) 'img)
-                                                         (or (if-attr 'alt n)
-                                                             (if-attr 'src n)))
-                                                    (string-join (string-split (string-trim (if (if-attr 'alt n)
-                                                                                   (if-attr 'alt n)
-                                                                                   (url->string (parse-url (if-attr 'src n)
-                                                                                                           base-url)))))
-                                                                 #:before-first (if expand-imgs " " "")
-                                                                 #:after-last (if expand-imgs " " ""))]
-                                                   [(and (sxml:element? n)
-                                                         (not (member (sxml:element-name n) (list 'style 'script))))
-                                                    (text-content n
-                                                                  base-url
-                                                                  #:notrim #t)]
-                                                   [else ""]))
-                                      (sxml:content element)))])
-    (if notrim
-        tc
-        (string-trim tc))))
+  ((if notrim
+       identity
+       string-trim) (apply string-append
+                           (map (λ (n) (cond [(string? n) n]
+                                             [(and (sxml:element? n)
+                                                   (equal? (sxml:element-name n) 'img)
+                                                   (or (if-attr 'alt n)
+                                                       (if-attr 'src n)))
+                                              (string-join (string-split (string-trim (if (if-attr 'alt n)
+                                                                                          (if-attr 'alt n)
+                                                                                          (url->string (parse-url (if-attr 'src n)
+                                                                                                                  base-url)))))
+                                                           #:before-first (if expand-imgs " " "")
+                                                           #:after-last (if expand-imgs " " ""))]
+                                             [(and (sxml:element? n)
+                                                   (not (member (sxml:element-name n) (list 'style 'script))))
+                                              (text-content n
+                                                            base-url
+                                                            #:notrim #t)]
+                                             [else ""]))
+                                (sxml:content element)))))
 
 
 (define (recursive-url-parse element
@@ -350,19 +350,18 @@
 
 (define (parse-properties element
                           base-url)
-  (append
-   (parse-p-* element
-              (find-class "^p(-[a-z0-9]+)?(-[a-z]+)+$" element)
-              base-url)
-   (parse-u-* element
-              (find-class "^u(-[a-z0-9]+)?(-[a-z]+)+$" element)
-              base-url)
-   (parse-dt-* element
-               (find-class "^dt(-[a-z0-9]+)?(-[a-z]+)+$" element)
-               base-url)
-   (parse-e-* element
-              (find-class "^e(-[a-z0-9]+)?(-[a-z]+)+$" element)
-              base-url)))
+  (apply append
+         (map (λ (pf)
+                ((car pf) element
+                    (find-class (string-append "^"
+                                               (cdr pf)
+                                               "(-[a-z0-9]+)?(-[a-z]+)+$")
+                                element)
+                    base-url))
+              (list (cons parse-p-* "p")
+                    (cons parse-u-* "u")
+                    (cons parse-dt-* "dt")
+                    (cons parse-e-* "e")))))
 
 
 (define (only-of-type type
